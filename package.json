@@ -1,0 +1,14 @@
+{
+  "name": "a-fragile-peace-that-burns-within",
+  "author": "stephen-carmody",
+  "version": "0.1.0",
+  "private": false,
+  "licence": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "npm install; npx npm-check-updates -u; npm install; python3 -m http.server"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
