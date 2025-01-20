@@ -16,18 +16,17 @@ export function createWebSocketClient(url, handler = {}) {
     // Connection opened
     socket.addEventListener("open", () => {
         console.log("Connected to the WebSocket server");
-        socket.send("Hello Server!"); // Send a message to the server
         setInterval(() => {
             const now = Date.now();
             let messages = [];
             if (outgoing.length) {
                 messages = outgoing;
                 outgoing = [];
-                ws.send(messages.join(";"));
+                socket.send(messages.join(";"));
                 lastseen = now;
             }
             if (now - lastseen > ${SERVER_DISCONNECT_TIMEOUT} * 0.8) {
-                ws.send('alive');
+                socket.send('{type:"alive"}');
                 lastseen = now;
             }
 }, 2000);
