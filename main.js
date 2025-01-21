@@ -1,4 +1,4 @@
-import { createWebSocketClient } from "./websocket-client.js";
+import { createSocketManager } from "./socketManager.js";
 
 const canvas = document.querySelector("canvas");
 const ctx = canvas.getContext("2d");
@@ -15,5 +15,28 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas(); // Initial resize
 
-// Create a WebSocket client
-const socket = createWebSocketClient("ws://localhost:8080");
+// Define message handlers
+const handler = {
+    init: (data) => {
+        console.log("Received init response from server:", data);
+        if (data.clientId) {
+            console.log("Client ID saved to localStorage:", data.clientId);
+        }
+    },
+    message: (data) => {
+        console.log("Received message:", data);
+    },
+    error: (data) => {
+        console.error("Error occurred:", data.error);
+    },
+};
+
+// Create the WebSocket client
+const socketManager = createSocketManager("ws://localhost:8080", handler, {
+    keepAliveTimeout: 16000,
+    messageInterval: 2000,
+    messageDelimiter: ";",
+});
+
+// Send a message
+socketManager.send({ type: "message", content: "Hello, WebSocket!" });
