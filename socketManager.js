@@ -4,7 +4,7 @@
  * ensuring the main thread remains responsive.
  *
  * @param {string} url - The WebSocket server URL to connect to.
- * @param {object} handler - An object containing message handlers.
+ * @param {object} messageHandler - An object containing message handlers.
  *                           Keys are message types, and values are handler functions.
  * @param {object} options - Configuration options for the WebSocket client.
  * @param {number} [options.keepAliveTimeout=16000] - Timeout for sending keep-alive messages (in milliseconds).
@@ -12,7 +12,7 @@
  * @param {string} [options.messageDelimiter=";"] - Delimiter for combining messages.
  * @returns {object} - An object with the worker instance and a `send` method.
  */
-export function createSocketManager(url, handler = {}, options = {}) {
+export function createSocketManager(url, messageHandler = {}, options = {}) {
     // Destructure options with default values
     const {
         keepAliveTimeout = 16000,
@@ -55,7 +55,21 @@ export function createSocketManager(url, handler = {}, options = {}) {
                  * Establishes a WebSocket connection and sets up event listeners.
                  */
                 function connect() {
-                    socket = new WebSocket("${url}");
+                    try {
+                        socket = new WebSocket("${url}");
+                    } catch (error) {
+                        // If WebSocket initialization fails, post an error message and attempt to reconnect
+                        console.error("WebSocket initialization failed:", error);
+                        postMessage({
+                            type: "error",
+                            error: {
+                                message: "WebSocket initialization failed",
+                                raw: error instanceof Error ? error.message : String(error),
+                            },
+                        });
+                        setTimeout(connect, ${messageInterval}); // Reconnect after a delay
+                        return;
+                    }
 
                     // Connection opened
                     socket.addEventListener("open", () => {
@@ -83,15 +97,32 @@ export function createSocketManager(url, handler = {}, options = {}) {
                                 postMessage(parsedMessage);
                             } catch (error) {
                                 console.error("Failed to parse message:", message, error);
+                                postMessage({
+                                    type: "error",
+                                    error: {
+                                        message: "Failed to parse message",
+                                        raw: message,
+                                    },
+                                });
                             }
                         });
                     });
 
                     // WebSocket error
                     socket.addEventListener("error", (error) => {
-                        console.error("WebSocket error:", error.message);
+                        console.error("WebSocket error:", error);
+
+                        // Prepare the error object to send to the main thread
+                        const errorPayload = {
+                            type: "error",
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                                raw: error, // Include the raw error object for additional context
+                            },
+                        };
+
                         // Forward the error to the main thread
-                        postMessage({ type: "error", error: error.message });
+                        postMessage(errorPayload);
                     });
 
                     // Connection closed
@@ -115,9 +146,14 @@ export function createSocketManager(url, handler = {}, options = {}) {
                         // Add the message to the outgoing queue
                         outgoing.push(message);
                     } catch (error) {
-                        console.error("Error processing message:", error.message);
-                        // Report the error back to the main thread
-                        postMessage({ type: "error", error: error.message });
+                        console.error("Error processing message:", error);
+                        postMessage({
+                            type: "error",
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                                raw: error,
+                            },
+                        });
                     }
                 };
 
@@ -140,8 +176,8 @@ export function createSocketManager(url, handler = {}, options = {}) {
         }
 
         // Call the appropriate handler for the message type
-        if (handler[type]) {
-            handler[type](event.data);
+        if (messageHandler[type]) {
+            messageHandler[type](event.data);
         } else {
             console.error(`No handler for message type: "${type}"`);
         }

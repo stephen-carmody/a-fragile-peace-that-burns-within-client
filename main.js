@@ -1,22 +1,11 @@
 import { createSocketManager } from "./socketManager.js";
+import { setupCanvas } from "./canvasManager.js";
 
-const canvas = document.querySelector("canvas");
-const ctx = canvas.getContext("2d");
-
-function resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = window.innerWidth * dpr;
-    canvas.height = window.innerHeight * dpr;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
-    ctx.scale(dpr, dpr); // Scale the context to match the device pixel ratio
-}
-
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas(); // Initial resize
+// Set up the canvas
+setupCanvas();
 
 // Define message handlers
-const handler = {
+const messageHandler = {
     init: (data) => {
         console.log("Received init response from server:", data);
         if (data.clientId) {
@@ -27,16 +16,23 @@ const handler = {
         console.log("Received message:", data);
     },
     error: (data) => {
-        console.error("Error occurred:", data.error);
+        console.error("Error occurred:", data.error.message);
+        if (data.error.raw) {
+            console.error("Raw error:", data.error.raw);
+        }
     },
 };
 
 // Create the WebSocket client
-const socketManager = createSocketManager("ws://localhost:8080", handler, {
-    keepAliveTimeout: 16000,
-    messageInterval: 2000,
-    messageDelimiter: ";",
-});
+const socketManager = createSocketManager(
+    "ws://localhost:8080",
+    messageHandler,
+    {
+        keepAliveTimeout: 16000,
+        messageInterval: 2000,
+        messageDelimiter: ";",
+    }
+);
 
 // Send a message
 socketManager.send({ type: "message", content: "Hello, WebSocket!" });
