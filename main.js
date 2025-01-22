@@ -16,10 +16,10 @@ const messageHandler = {
         console.log("Received message:", data);
     },
     error: (data) => {
-        console.error("Error occurred:", data.error.message);
-        if (data.error.raw) {
-            console.error("Raw error:", data.error.raw);
-        }
+        console.error("Error occurred:", data.message);
+    },
+    connected: (data) => {
+        console.log("WebSocket connection established:", data);
     },
 };
 

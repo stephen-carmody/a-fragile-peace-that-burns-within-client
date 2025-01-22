@@ -33,6 +33,8 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                 let intervalId;      // ID for the message interval
                 let outgoing = [];   // Queue for outgoing messages
                 let lastSeen = Date.now(); // Timestamp of the last message sent or received
+                let reconnectAttempts = 0; // Track reconnection attempts for exponential backoff
+                const maxReconnectDelay = 30000; // Maximum delay between reconnection attempts (30 seconds)
 
                 /**
                  * Sends batched messages to the server or a keep-alive message if idle.
@@ -52,28 +54,25 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                 }
 
                 /**
+                 * Calculates the delay for the next reconnection attempt using exponential backoff.
+                 * @returns {number} - The delay in milliseconds.
+                 */
+                function getReconnectDelay() {
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), maxReconnectDelay);
+                    reconnectAttempts++;
+                    return delay;
+                }
+
+                /**
                  * Establishes a WebSocket connection and sets up event listeners.
                  */
                 function connect() {
-                    try {
-                        socket = new WebSocket("${url}");
-                    } catch (error) {
-                        // If WebSocket initialization fails, post an error message and attempt to reconnect
-                        console.error("WebSocket initialization failed:", error);
-                        postMessage({
-                            type: "error",
-                            error: {
-                                message: "WebSocket initialization failed",
-                                raw: error instanceof Error ? error.message : String(error),
-                            },
-                        });
-                        setTimeout(connect, ${messageInterval}); // Reconnect after a delay
-                        return;
-                    }
+                    socket = new WebSocket("${url}");
 
                     // Connection opened
                     socket.addEventListener("open", () => {
                         console.log("Connected to WebSocket server");
+                        reconnectAttempts = 0; // Reset reconnection attempts on successful connection
 
                         // Send an "init" message with the clientId (passed from the main thread)
                         const initMessage = JSON.stringify({
@@ -97,13 +96,6 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                                 postMessage(parsedMessage);
                             } catch (error) {
                                 console.error("Failed to parse message:", message, error);
-                                postMessage({
-                                    type: "error",
-                                    error: {
-                                        message: "Failed to parse message",
-                                        raw: message,
-                                    },
-                                });
                             }
                         });
                     });
@@ -111,30 +103,25 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                     // WebSocket error
                     socket.addEventListener("error", (error) => {
                         console.error("WebSocket error:", error);
-
-                        // Prepare the error object to send to the main thread
-                        const errorPayload = {
-                            type: "error",
-                            error: {
-                                message: error instanceof Error ? error.message : String(error),
-                                raw: error, // Include the raw error object for additional context
-                            },
-                        };
-
-                        // Forward the error to the main thread
-                        postMessage(errorPayload);
                     });
 
                     // Connection closed
                     socket.addEventListener("close", () => {
                         console.log("Disconnected from WebSocket server");
                         clearInterval(intervalId); // Stop the message interval
-                        setTimeout(connect, ${messageInterval}); // Reconnect after a delay
+
+                        // Reconnect after a delay using exponential backoff
+                        const delay = getReconnectDelay();
+                        console.log(\`Reconnecting in \${delay / 1000} seconds...\`);
+                        setTimeout(connect, delay);
                     });
                 }
 
-                // Listen for messages from the main thread
-                self.onmessage = (event) => {
+                /**
+                 * Processes messages received from the main thread.
+                 * @param {MessageEvent} event - The message event.
+                 */
+                function handleMessageFromMainThread(event) {
                     try {
                         const message = JSON.stringify(event.data);
 
@@ -149,13 +136,13 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                         console.error("Error processing message:", error);
                         postMessage({
                             type: "error",
-                            error: {
-                                message: error instanceof Error ? error.message : String(error),
-                                raw: error,
-                            },
+                            message: "Error processing message",
                         });
                     }
-                };
+                }
+
+                // Listen for messages from the main thread
+                self.onmessage = handleMessageFromMainThread;
 
                 // Initialize the WebSocket connection
                 connect();
