@@ -8,9 +8,6 @@ setupCanvas();
 const messageHandler = {
     init: (data) => {
         console.log("Received init response from server:", data);
-        if (data.clientId) {
-            console.log("Client ID saved to localStorage:", data.clientId);
-        }
     },
     message: (data) => {
         console.log("Received message:", data);
@@ -21,18 +18,21 @@ const messageHandler = {
     connected: (data) => {
         console.log("WebSocket connection established:", data);
     },
+    disconnected: (data) => {
+        console.log("Client disconnected:", data.clientId);
+    },
 };
 
 // Create the WebSocket client
 const socketManager = createSocketManager(
     "ws://localhost:8080",
-    messageHandler,
-    {
-        keepAliveTimeout: 16000,
-        messageInterval: 2000,
-        messageDelimiter: ";",
-    }
+    messageHandler
 );
 
 // Send a message
 socketManager.send({ type: "message", content: "Hello, WebSocket!" });
+
+// Handle page unload to clean up the worker
+window.addEventListener("beforeunload", () => {
+    socketManager.close();
+});

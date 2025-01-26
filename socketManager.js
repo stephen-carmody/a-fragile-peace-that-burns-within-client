@@ -7,34 +7,29 @@
  * @param {object} messageHandler - An object containing message handlers.
  *                           Keys are message types, and values are handler functions.
  * @param {object} options - Configuration options for the WebSocket client.
- * @param {number} [options.keepAliveTimeout=16000] - Timeout for sending keep-alive messages (in milliseconds).
- * @param {number} [options.messageInterval=2000] - Interval for batching and sending messages (in milliseconds).
- * @param {string} [options.messageDelimiter=";"] - Delimiter for combining messages.
  * @returns {object} - An object with the worker instance and a `send` method.
  */
 export function createSocketManager(url, messageHandler = {}, options = {}) {
-    // Destructure options with default values
-    const {
-        keepAliveTimeout = 16000,
-        messageInterval = 2000,
-        messageDelimiter = ";",
-    } = options;
+    const {} = options;
 
-    // Retrieve the clientId from localStorage in the main thread
-    const clientId = localStorage.getItem("clientId");
+    // Retrieve the clientSecret from localStorage
+    const clientSecret = localStorage.getItem("clientSecret");
 
     // Create a Web Worker to handle WebSocket communication in a separate thread
     const worker = new Worker(
         URL.createObjectURL(
             new Blob([
                 `
-                // WebSocket and state variables
-                let socket;          // WebSocket instance
-                let intervalId;      // ID for the message interval
-                let outgoing = [];   // Queue for outgoing messages
-                let lastSeen = Date.now(); // Timestamp of the last message sent or received
-                let reconnectAttempts = 0; // Track reconnection attempts for exponential backoff
-                const maxReconnectDelay = 30000; // Maximum delay between reconnection attempts (30 seconds)
+                let socket;
+                let intervalId;
+                let outgoing = [];
+                let lastSeen = Date.now();
+                let reconnectAttempts = 0;
+                const maxReconnectDelay = 30000;
+
+                let keepAliveTimeout = 30000;
+                let updateInterval = 5000;
+                let messageDelimiter = ";";
 
                 /**
                  * Sends batched messages to the server or a keep-alive message if idle.
@@ -43,12 +38,12 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                     const now = Date.now();
                     if (outgoing.length) {
                         // Send all queued messages as a single batch
-                        socket.send(outgoing.join("${messageDelimiter}"));
+                        socket.send(outgoing.join(messageDelimiter));
                         outgoing = []; // Clear the queue
                         lastSeen = now;
-                    } else if (now - lastSeen > ${keepAliveTimeout}) {
+                    } else if (now - lastSeen > keepAliveTimeout) {
                         // Send a keep-alive message if the connection is idle
-                        socket.send(JSON.stringify({type:"alive"}));
+                        socket.send(JSON.stringify({ type: "alive" }));
                         lastSeen = now;
                     }
                 }
@@ -74,25 +69,44 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                         console.log("Connected to WebSocket server");
                         reconnectAttempts = 0; // Reset reconnection attempts on successful connection
 
-                        // Send an "init" message with the clientId (passed from the main thread)
+                        // Send an "init" message with the clientSecret (passed from the main thread)
                         const initMessage = JSON.stringify({
                             type: "init",
-                            clientId: ${clientId ? `"${clientId}"` : null},
+                            clientSecret: ${clientSecret ? `"${clientSecret}"` : null},
                         });
                         socket.send(initMessage);
 
                         // Start the interval for sending messages
-                        intervalId = setInterval(sendMessages, ${messageInterval});
+                        intervalId = setInterval(sendMessages, updateInterval);
                     });
 
                     // Message received from the server
                     socket.addEventListener("message", (event) => {
                         // Split combined messages using the delimiter
-                        const messages = event.data.split("${messageDelimiter}");
-                        messages.forEach(message => {
+                        const messages = event.data.split(messageDelimiter);
+                        messages.forEach((message) => {
                             try {
                                 // Parse each message and forward to the main thread
                                 const parsedMessage = JSON.parse(message);
+
+                                // Adjust keepAliveTimeout and updateInterval if provided in init message
+                                const { type } = parsedMessage;
+                                if (type === "init") {
+                                    const { clientId, keepAliveTimeout: newKeepAliveTimeout, updateInterval: newUpdateInterval } = parsedMessage;
+                                    console.log("clientId is " + clientId);
+                                    if (newKeepAliveTimeout) {
+                                        keepAliveTimeout = newKeepAliveTimeout;
+                                        console.log("keepAliveTimeout = " + keepAliveTimeout + " updated from 'init' message");
+                                    }
+                                    if (newUpdateInterval) {
+                                        updateInterval = newUpdateInterval;
+                                        console.log("updateInterval = " + updateInterval + " updated from 'init' message");
+                                        clearInterval(intervalId); // Stop the message interval
+                                        // Start the interval for sending messages
+                                        intervalId = setInterval(sendMessages, updateInterval);
+                                    }
+                                }
+
                                 postMessage(parsedMessage);
                             } catch (error) {
                                 console.error("Failed to parse message:", message, error);
@@ -126,7 +140,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                         const message = JSON.stringify(event.data);
 
                         // Check if the message contains the delimiter
-                        if (message.includes("${messageDelimiter}")) {
+                        if (message.includes(messageDelimiter)) {
                             throw new Error("Message contains the reserved delimiter character");
                         }
 
@@ -153,13 +167,20 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
     // Listen for messages from the worker
     worker.onmessage = (event) => {
-        const { type, clientId: newClientId } = event.data;
+        const { type, clientId, clientSecret } = event.data;
 
         // Handle "init" response from the server
-        if (type === "init" && newClientId) {
-            // Save the new clientId to localStorage in the main thread
-            localStorage.setItem("clientId", newClientId);
-            console.log("Client ID saved to localStorage:", newClientId);
+        if (type === "init") {
+            if (clientSecret) {
+                // Retrieve the clientSecret from localStorage
+                const storedClientSecret = localStorage.getItem("clientSecret");
+
+                // If clientSecret has changed, save the new clientSecret
+                if (storedClientSecret !== clientSecret) {
+                    localStorage.setItem("clientSecret", clientSecret);
+                    console.log("New secret saved to localStorage");
+                }
+            }
         }
 
         // Call the appropriate handler for the message type
@@ -173,5 +194,6 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
     // Return the public API
     return {
         send: (message) => worker.postMessage(message), // Method to send messages to the worker
+        close: () => worker.terminate(), // Terminate the worker when no longer needed
     };
 }
