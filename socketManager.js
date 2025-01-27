@@ -41,7 +41,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                         socket.send(outgoing.join(messageDelimiter));
                         outgoing = []; // Clear the queue
                         lastSeen = now;
-                    } else if (now - lastSeen > keepAliveTimeout) {
+                    } else if (now - lastSeen > keepAliveTimeout * 0.5) {
                         // Send a keep-alive message if the connection is idle
                         socket.send(JSON.stringify({ type: "alive" }));
                         lastSeen = now;
