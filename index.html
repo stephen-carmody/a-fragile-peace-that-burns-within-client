@@ -1,27 +1,50 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>A fragile peace that burns within</title>
-    <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css"
-    />
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-      }
-      canvas {
-        display: block;
-      }
-    </style>
-  </head>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>A fragile peace that burns within</title>
+        <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+            }
+            canvas {
+                display: block;
+            }
+        </style>
+    </head>
 
-  <body>
-    <canvas></canvas>
-    <script type="module" src="main.js"></script>
-  </body>
+    <body>
+        <div class="container">
+            <div class="controls">
+                <button id="minimize-button" title="Minimize">−</button>
+                <button id="restore-button" title="Restore">◻</button>
+                <button id="maximize-button" title="Maximize">⛶</button>
+            </div>
+            <div class="panes">
+                <div class="left-pane">
+                    <ul id="channel-list">
+                        <!-- Channels will be dynamically added here -->
+                    </ul>
+                </div>
+                <div class="right-pane">
+                    <div id="message-container">
+                        <!-- Messages will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+            <div class="bottom-pane">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type your message here..."
+                />
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+        <script type="module" src="main.js"></script>
+    </body>
 </html>

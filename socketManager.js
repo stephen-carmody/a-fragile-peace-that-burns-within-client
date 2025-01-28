@@ -74,6 +74,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                             type: "init",
                             clientSecret: ${clientSecret ? `"${clientSecret}"` : null},
                         });
+                        console.log(initMessage);
                         socket.send(initMessage);
 
                         // Start the interval for sending messages
@@ -93,14 +94,14 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                                 const { type } = parsedMessage;
                                 if (type === "init") {
                                     const { clientId, keepAliveTimeout: newKeepAliveTimeout, updateInterval: newUpdateInterval } = parsedMessage;
-                                    console.log("clientId is " + clientId);
+                                    console.log("clientId " + clientId);
                                     if (newKeepAliveTimeout) {
                                         keepAliveTimeout = newKeepAliveTimeout;
-                                        console.log("keepAliveTimeout = " + keepAliveTimeout + " updated from 'init' message");
+                                        console.log("updated keepAliveTimeout to " + keepAliveTimeout);
                                     }
                                     if (newUpdateInterval) {
                                         updateInterval = newUpdateInterval;
-                                        console.log("updateInterval = " + updateInterval + " updated from 'init' message");
+                                        console.log("updated updateInterval to " + updateInterval);
                                         clearInterval(intervalId); // Stop the message interval
                                         // Start the interval for sending messages
                                         intervalId = setInterval(sendMessages, updateInterval);
@@ -171,6 +172,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
         // Handle "init" response from the server
         if (type === "init") {
+            console.log(event.data);
             if (clientSecret) {
                 // Retrieve the clientSecret from localStorage
                 const storedClientSecret = localStorage.getItem("clientSecret");
