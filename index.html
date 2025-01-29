@@ -6,43 +6,49 @@
         <title>A fragile peace that burns within</title>
         <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
         <link rel="stylesheet" href="styles.css" />
-        <style>
-            body {
-                margin: 0;
-                overflow: hidden;
-            }
-            canvas {
-                display: block;
-            }
-        </style>
     </head>
 
     <body>
         <div class="container">
             <div class="controls">
-                <button id="minimize-button" title="Minimize">−</button>
-                <button id="restore-button" title="Restore">◻</button>
-                <button id="maximize-button" title="Maximize">⛶</button>
+                <button id="height-control-up-button" title="Maximize">
+                    ▲
+                </button>
+                <button id="height-control-down-button" title="Minimize">
+                    ▼
+                </button>
+            </div>
+            <div class="messages-pane">
+                <div id="message-container">
+                    <!-- Messages will be dynamically added here -->
+                </div>
             </div>
             <div class="panes">
-                <div class="left-pane">
-                    <ul id="channel-list">
-                        <!-- Channels will be dynamically added here -->
-                    </ul>
-                </div>
-                <div class="right-pane">
-                    <div id="message-container">
-                        <!-- Messages will be dynamically added here -->
+                <div class="channels-pane">
+                    <div class="dropdown">
+                        <button
+                            id="channel-dropdown-button"
+                            class="dropdown-button"
+                        >
+                            <span id="selected-channel">Select a channel</span>
+                            <span class="arrow">▼</span>
+                        </button>
+                        <div
+                            id="channel-dropdown-list"
+                            class="dropdown-content"
+                        >
+                            <!-- Channels will be dynamically added here -->
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="bottom-pane">
-                <input
-                    type="text"
-                    id="message-input"
-                    placeholder="Type your message here..."
-                />
-                <button id="send-button">Send</button>
+                <div class="prompt-pane">
+                    <input
+                        type="text"
+                        id="message-input"
+                        placeholder="Type your message here..."
+                    />
+                    <button id="send-button">Send</button>
+                </div>
             </div>
         </div>
         <script type="module" src="main.js"></script>

@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatManager = createChatManager();
 
     // Initialize the chat manager with initial channels and height
-    chatManager.init(["System"], "restored");
+    chatManager.init(["Event", "Local"], "restored"); // Updated initial channels
 
     // Define message handlers
     const messageHandler = {
@@ -17,34 +17,34 @@ document.addEventListener("DOMContentLoaded", () => {
             chatManager.addMessage(
                 data.content,
                 "received",
-                data.channel || "System"
+                data.channel || "Event"
             );
         },
         error: (data) => {
             chatManager.addMessage(
                 `Error: ${data.message}`,
                 "received",
-                "System"
+                "Event"
             );
         },
         connected: (data) => {
             chatManager.addMessage(
                 `Client ${data.clientId} connected`,
                 "received",
-                "System"
+                "Event"
             );
         },
         disconnected: (data) => {
             chatManager.addMessage(
                 `Client ${data.clientId} disconnected`,
                 "received",
-                "System"
+                "Event"
             );
         },
         welcome: (data) => {
             // Clear the preserved state when a welcome message is received
             chatManager.clearState();
-            chatManager.init(["System"], "restored"); // Reinitialize with default state
+            chatManager.init(["Event", "Local"], "restored"); // Updated initial channels
             chatManager.addMessage(data.message, "received", "System");
         },
     };

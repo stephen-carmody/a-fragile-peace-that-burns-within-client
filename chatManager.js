@@ -3,15 +3,19 @@ export function createChatManager() {
     const messageContainer = document.getElementById("message-container");
     const messageInput = document.getElementById("message-input");
     const sendButton = document.getElementById("send-button");
-    const minimizeButton = document.getElementById("minimize-button");
-    const restoreButton = document.getElementById("restore-button");
-    const maximizeButton = document.getElementById("maximize-button");
+    const heightControlUpButton = document.getElementById(
+        "height-control-up-button"
+    );
+    const heightControlDownButton = document.getElementById(
+        "height-control-down-button"
+    );
     const container = document.querySelector(".container");
-    const bottomPane = document.querySelector(".bottom-pane");
+    const messagesPane = document.querySelector(".messages-pane");
 
     let channels = []; // Channels will be loaded from localStorage or initialized later
     let currentChannel = null; // Current channel will be set after initialization
     let messages = {}; // Object to store messages by channel: { channelName: [messages] }
+    let currentHeightState = "restored"; // Track the current height state
 
     // Initialize the chat manager
     function init(initialChannels = [], initialHeight = "restored") {
@@ -36,15 +40,44 @@ export function createChatManager() {
             }
         });
 
-        minimizeButton.addEventListener("click", () =>
-            setChatHeight("minimized")
+        heightControlUpButton.addEventListener("click", () =>
+            setChatHeight(
+                currentHeightState === "minimized" ? "restored" : "maximized"
+            )
         );
-        restoreButton.addEventListener("click", () =>
-            setChatHeight("restored")
+        heightControlDownButton.addEventListener("click", () =>
+            setChatHeight(
+                currentHeightState === "maximized" ? "restored" : "minimized"
+            )
         );
-        maximizeButton.addEventListener("click", () =>
-            setChatHeight("maximized")
-        );
+    }
+
+    /**
+     * Sets the chat window height and updates the height control button.
+     * @param {string} mode - The height mode ("minimized", "restored", or "maximized").
+     */
+    function setChatHeight(mode) {
+        currentHeightState = mode;
+        switch (mode) {
+            case "minimized":
+                container.style.height = "auto";
+                messagesPane.style.display = "none";
+                heightControlUpButton.style.display = "inline-block";
+                heightControlDownButton.style.display = "none";
+                break;
+            case "restored":
+                container.style.height = "30%";
+                messagesPane.style.display = "flex";
+                heightControlUpButton.style.display = "inline-block";
+                heightControlDownButton.style.display = "inline-block";
+                break;
+            case "maximized":
+                container.style.height = "98%";
+                messagesPane.style.display = "flex";
+                heightControlUpButton.style.display = "none";
+                heightControlDownButton.style.display = "inline-block";
+                break;
+        }
     }
 
     /**
@@ -82,7 +115,8 @@ export function createChatManager() {
      * Loads channels into the UI.
      */
     function loadChannels() {
-        channelList.innerHTML = ""; // Clear existing channels
+        const dropdownList = document.getElementById("channel-dropdown-list");
+        dropdownList.innerHTML = ""; // Clear existing channels
         channels.forEach((channel) => {
             addChannelToList(channel);
         });
@@ -90,6 +124,8 @@ export function createChatManager() {
         // Load messages for the current channel
         if (currentChannel) {
             loadMessagesForChannel(currentChannel);
+            document.getElementById("selected-channel").textContent =
+                currentChannel;
         }
     }
 
@@ -98,28 +134,37 @@ export function createChatManager() {
      * @param {string} channel - The channel name.
      */
     function addChannelToList(channel) {
-        const li = document.createElement("li");
-        li.textContent = channel;
-        li.addEventListener("click", () => {
+        const dropdownList = document.getElementById("channel-dropdown-list");
+        const channelItem = document.createElement("div");
+        channelItem.textContent = channel;
+        channelItem.addEventListener("click", () => {
+            // Update the selected channel
+            currentChannel = channel;
+            document.getElementById("selected-channel").textContent = channel;
+
             // Remove 'selected' class from all channels
-            document.querySelectorAll("#channel-list li").forEach((item) => {
-                item.classList.remove("selected");
-            });
+            document
+                .querySelectorAll("#channel-dropdown-list div")
+                .forEach((item) => {
+                    item.classList.remove("selected");
+                });
 
             // Add 'selected' class to the clicked channel
-            li.classList.add("selected");
+            channelItem.classList.add("selected");
 
-            // Update the current channel and load messages
-            currentChannel = channel;
+            // Load messages for the selected channel
             loadMessagesForChannel(channel);
+
+            // Hide the dropdown
+            dropdownList.classList.remove("show");
         });
 
         // Highlight the default selected channel
         if (channel === currentChannel) {
-            li.classList.add("selected");
+            channelItem.classList.add("selected");
         }
 
-        channelList.appendChild(li);
+        dropdownList.appendChild(channelItem);
     }
 
     /**
@@ -204,26 +249,29 @@ export function createChatManager() {
         messageContainer.scrollTop = messageContainer.scrollHeight;
     }
 
-    /**
-     * Sets the chat window height.
-     * @param {string} mode - The height mode ("minimized", "restored", or "maximized").
-     */
-    function setChatHeight(mode) {
-        switch (mode) {
-            case "minimized":
-                container.style.height = "50px";
-                bottomPane.classList.add("hidden");
-                break;
-            case "restored":
-                container.style.height = "30%";
-                bottomPane.classList.remove("hidden");
-                break;
-            case "maximized":
-                container.style.height = "100%";
-                bottomPane.classList.remove("hidden");
-                break;
+    // Add event listener to toggle the dropdown
+    document
+        .getElementById("channel-dropdown-button")
+        .addEventListener("click", () => {
+            const dropdownList = document.getElementById(
+                "channel-dropdown-list"
+            );
+            dropdownList.classList.toggle("show");
+        });
+
+    // Close the dropdown when clicking outside
+    window.addEventListener("click", (event) => {
+        const dropdownButton = document.getElementById(
+            "channel-dropdown-button"
+        );
+        const dropdownList = document.getElementById("channel-dropdown-list");
+        if (
+            !dropdownButton.contains(event.target) &&
+            !dropdownList.contains(event.target)
+        ) {
+            dropdownList.classList.remove("show");
         }
-    }
+    });
 
     // Public API
     return {

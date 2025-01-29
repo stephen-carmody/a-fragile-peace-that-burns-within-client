@@ -9,6 +9,7 @@ html {
     height: 100%;
     font-family: Arial, sans-serif;
     background-color: #ffffff; /* White background for the entire page */
+    overflow: hidden;
 }
 
 .container {
@@ -32,21 +33,23 @@ html {
 
 .controls {
     position: absolute;
-    top: 0;
+    top: -10px;
     right: 0;
-    padding: 5px;
-    background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent white */
+    padding: 2px;
     border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
     z-index: 10;
+    display: flex;
+    gap: 5px;
+    background-color: transparent; /* Removed background */
 }
 
 .controls button {
     background: none;
     border: none;
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
-    padding: 3px 5px;
-    margin: 0 2px;
+    margin: 0;
     color: #333; /* Dark text for contrast */
 }
 
@@ -55,100 +58,138 @@ html {
     border-radius: 3px;
 }
 
-.panes {
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    overflow: hidden;
-}
-
-.left-pane {
-    width: 25%;
-    background-color: #ffffff; /* White background */
-    border-right: 1px solid #e0e0e0; /* Light border for separation */
-    overflow-y: auto;
-    padding: 10px;
-}
-
-.left-pane ul {
-    list-style-type: none;
-}
-
-.left-pane li {
-    padding: 8px;
-    cursor: pointer;
-    border-radius: 4px;
-    margin-bottom: 4px;
-    line-height: 1.5;
-    color: #333; /* Dark text for contrast */
-}
-
-.left-pane li:hover {
-    background-color: #f5f5f5; /* Light gray on hover */
-}
-
-.left-pane li.selected {
-    background-color: #007bff; /* Blue background for selected channel */
-    color: white; /* White text for selected channel */
-}
-
-.right-pane {
-    width: 75%;
+.messages-pane {
+    flex: 1; /* Take up remaining space */
     background-color: #ffffff; /* White background */
     overflow-y: auto;
-    padding: 10px;
     display: flex;
     flex-direction: column;
 }
 
-.bottom-pane {
-    width: 100%;
-    background-color: #ffffff; /* White background */
-    padding: 10px;
+.panes {
     display: flex;
-    border-top: 1px solid #e0e0e0; /* Light border for separation */
-    transition: opacity 0.3s ease; /* Smooth transition for hiding */
+    flex-direction: row;
 }
 
-.bottom-pane.hidden {
-    opacity: 0; /* Hide the bottom pane when minimized */
-    pointer-events: none; /* Disable interactions when hidden */
+.channels-pane {
+    width: 12em; /* Updated width to 15em */
+    background-color: #ffffff; /* White background */
+    padding: 10px;
+    position: relative; /* Needed for dropdown positioning */
+    display: flex;
+    flex-direction: column;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    width: 100%; /* Ensure the dropdown takes up the full width of its parent */
+}
+
+.dropdown-button {
+    width: 100%; /* Take up the full width of the dropdown container */
+    height: 40px; /* Set a fixed height for the dropdown button */
+    display: flex;
+    align-items: center; /* Vertically center the text and arrow */
+    justify-content: space-between;
+    padding: 10px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+.dropdown-button:hover {
+    background-color: #f5f5f5;
+}
+
+.dropdown-button .arrow {
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    width: 100%; /* Match the width of the dropdown-button */
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+    bottom: 100%; /* Position the dropdown above the button */
+    margin-bottom: 5px; /* Add some space between the button and the dropdown */
+}
+
+.dropdown-content.show {
+    display: block;
+}
+
+.dropdown-content div {
+    padding: 10px;
+    cursor: pointer;
+    color: #333;
+    font-size: 14px;
+}
+
+.dropdown-content div:hover {
+    background-color: #f5f5f5;
+}
+
+.dropdown-content div.selected {
+    background-color: #007bff;
+    color: white;
+}
+
+.prompt-pane {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: calc(100% - 12em); /* Adjusted width to account for channels-pane */
+    padding: 10px;
 }
 
 #message-container {
     flex-grow: 1;
     overflow-y: auto;
-    margin-bottom: 10px;
 }
 
 #message-input {
     flex-grow: 1;
     padding: 10px;
-    border: 1px solid #e0e0e0; /* Light border */
+    border: 1px solid #e0e0e0;
     border-radius: 4px;
-    margin-right: 10px;
-    background-color: #ffffff; /* White background */
-    color: #333; /* Dark text for contrast */
+    font-size: 14px;
+    line-height: 1.5;
+    height: 40px; /* Match the height of the dropdown button */
+    box-sizing: border-box; /* Ensure padding is included in the height */
 }
 
 #send-button {
     padding: 10px 20px;
-    background-color: #007bff; /* Blue button */
+    background-color: #007bff;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    height: 40px; /* Match the height of the dropdown button */
+    box-sizing: border-box; /* Ensure padding is included in the height */
+    flex-shrink: 0; /* Prevent the button from shrinking */
 }
 
 #send-button:hover {
-    background-color: #0056b3; /* Darker blue on hover */
+    background-color: #0056b3;
 }
 
 .message {
-    margin-bottom: 10px;
-    padding: 10px;
+    margin-bottom: 1px;
+    padding: 4px;
     border-radius: 4px;
-    line-height: 1.5;
+    line-height: 1;
 }
 
 .message.sent {
