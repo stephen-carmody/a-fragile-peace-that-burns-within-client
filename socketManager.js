@@ -12,6 +12,9 @@
 export function createSocketManager(url, messageHandler = {}, options = {}) {
     const {} = options;
 
+    // Debug flag to enable/disable low-level socket logging
+    const DEBUG = true; // Set to `false` to disable logging
+
     // Retrieve the clientSecret from localStorage
     const clientSecret = localStorage.getItem("clientSecret");
 
@@ -38,12 +41,16 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                     const now = Date.now();
                     if (outgoing.length) {
                         // Send all queued messages as a single batch
-                        socket.send(outgoing.join(messageDelimiter));
+                        const batch = outgoing.join(messageDelimiter);
+                        ${DEBUG ? 'console.log("[SOCKET] Sending messages to server:", batch);' : ""}
+                        socket.send(batch);
                         outgoing = []; // Clear the queue
                         lastSeen = now;
                     } else if (now - lastSeen > keepAliveTimeout * 0.5) {
                         // Send a keep-alive message if the connection is idle
-                        socket.send(JSON.stringify({ type: "alive" }));
+                        const keepAliveMessage = JSON.stringify({ type: "alive" });
+                        ${DEBUG ? 'console.log("[SOCKET] Sending keep-alive message:", keepAliveMessage);' : ""}
+                        socket.send(keepAliveMessage);
                         lastSeen = now;
                     }
                 }
@@ -66,7 +73,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
                     // Connection opened
                     socket.addEventListener("open", () => {
-                        console.log("Connected to WebSocket server");
+                        ${DEBUG ? 'console.log("[SOCKET] Connected to WebSocket server");' : ""}
                         reconnectAttempts = 0; // Reset reconnection attempts on successful connection
 
                         // Send an "init" message with the clientSecret (passed from the main thread)
@@ -74,7 +81,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                             type: "init",
                             clientSecret: ${clientSecret ? `"${clientSecret}"` : null},
                         });
-                        console.log(initMessage);
+                        ${DEBUG ? 'console.log("[SOCKET] Sending init message:", initMessage);' : ""}
                         socket.send(initMessage);
 
                         // Start the interval for sending messages
@@ -83,6 +90,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
                     // Message received from the server
                     socket.addEventListener("message", (event) => {
+                        ${DEBUG ? 'console.log("[SOCKET] Received message from server:", event.data);' : ""}
                         // Split combined messages using the delimiter
                         const messages = event.data.split(messageDelimiter);
                         messages.forEach((message) => {
@@ -94,14 +102,14 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                                 const { type } = parsedMessage;
                                 if (type === "init") {
                                     const { clientId, keepAliveTimeout: newKeepAliveTimeout, updateInterval: newUpdateInterval } = parsedMessage;
-                                    console.log("clientId " + clientId);
+                                    ${DEBUG ? 'console.log("[SOCKET] clientId " + clientId);' : ""}
                                     if (newKeepAliveTimeout) {
                                         keepAliveTimeout = newKeepAliveTimeout;
-                                        console.log("updated keepAliveTimeout to " + keepAliveTimeout);
+                                        ${DEBUG ? 'console.log("[SOCKET] Set keepAliveTimeout to " + keepAliveTimeout);' : ""}
                                     }
                                     if (newUpdateInterval) {
                                         updateInterval = newUpdateInterval;
-                                        console.log("updated updateInterval to " + updateInterval);
+                                        ${DEBUG ? 'console.log("[SOCKET] Set updateInterval to " + updateInterval);' : ""}
                                         clearInterval(intervalId); // Stop the message interval
                                         // Start the interval for sending messages
                                         intervalId = setInterval(sendMessages, updateInterval);
@@ -110,24 +118,24 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
                                 postMessage(parsedMessage);
                             } catch (error) {
-                                console.error("Failed to parse message:", message, error);
+                                console.error("[SOCKET] Failed to parse message:", message, error);
                             }
                         });
                     });
 
                     // WebSocket error
                     socket.addEventListener("error", (error) => {
-                        console.error("WebSocket error:", error);
+                        console.error("[SOCKET] WebSocket error:", error);
                     });
 
                     // Connection closed
                     socket.addEventListener("close", () => {
-                        console.log("Disconnected from WebSocket server");
+                        ${DEBUG ? 'console.log("[SOCKET] Disconnected from WebSocket server");' : ""}
                         clearInterval(intervalId); // Stop the message interval
 
                         // Reconnect after a delay using exponential backoff
                         const delay = getReconnectDelay();
-                        console.log(\`Reconnecting in \${delay / 1000} seconds...\`);
+                        ${DEBUG ? "console.log(`[SOCKET] Reconnecting in ${delay / 1000} seconds...`);" : ""}
                         setTimeout(connect, delay);
                     });
                 }
@@ -139,6 +147,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                 function handleMessageFromMainThread(event) {
                     try {
                         const message = JSON.stringify(event.data);
+                        ${DEBUG ? 'console.log("[SOCKET] Received message from main thread:", message);' : ""}
 
                         // Check if the message contains the delimiter
                         if (message.includes(messageDelimiter)) {
@@ -148,7 +157,7 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                         // Add the message to the outgoing queue
                         outgoing.push(message);
                     } catch (error) {
-                        console.error("Error processing message:", error);
+                        console.error("[SOCKET] Error processing message:", error);
                         postMessage({
                             type: "error",
                             message: "Error processing message",
@@ -172,7 +181,8 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
 
         // Handle "init" response from the server
         if (type === "init") {
-            console.log(event.data);
+            if (DEBUG)
+                console.log("[SOCKET] Init response from server:", event.data);
             if (clientSecret) {
                 // Retrieve the clientSecret from localStorage
                 const storedClientSecret = localStorage.getItem("clientSecret");
@@ -180,7 +190,10 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                 // If clientSecret has changed, save the new clientSecret
                 if (storedClientSecret !== clientSecret) {
                     localStorage.setItem("clientSecret", clientSecret);
-                    console.log("New secret saved to localStorage");
+                    if (DEBUG)
+                        console.log(
+                            "[SOCKET] New secret saved to localStorage"
+                        );
                 }
             }
         }
@@ -189,13 +202,20 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
         if (messageHandler[type]) {
             messageHandler[type](event.data);
         } else {
-            console.error(`No handler for message type: "${type}"`);
+            console.error(`[SOCKET] No handler for message type: "${type}"`);
         }
     };
 
     // Return the public API
     return {
-        send: (message) => worker.postMessage(message), // Method to send messages to the worker
-        close: () => worker.terminate(), // Terminate the worker when no longer needed
+        send: (message) => {
+            if (DEBUG)
+                console.log("[SOCKET] Sending message to worker:", message);
+            worker.postMessage(message);
+        },
+        close: () => {
+            if (DEBUG) console.log("[SOCKET] Terminating worker");
+            worker.terminate();
+        },
     };
 }
