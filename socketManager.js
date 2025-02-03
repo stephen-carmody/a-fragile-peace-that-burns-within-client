@@ -1,24 +1,9 @@
-/**
- * Creates and manages a WebSocket connection using a Web Worker.
- * This allows WebSocket communication to run in a separate thread,
- * ensuring the main thread remains responsive.
- *
- * @param {string} url - The WebSocket server URL to connect to.
- * @param {object} messageHandler - An object containing message handlers.
- *                           Keys are message types, and values are handler functions.
- * @param {object} options - Configuration options for the WebSocket client.
- * @returns {object} - An object with the worker instance and a `send` method.
- */
 export function createSocketManager(url, messageHandler = {}, options = {}) {
-    const {} = options;
+    const DEBUG = true;
 
-    // Debug flag to enable/disable low-level socket logging
-    const DEBUG = true; // Set to `false` to disable logging
+    // Get initial clientSecret from localStorage
+    let clientSecret = localStorage.getItem("clientSecret");
 
-    // Retrieve the clientSecret from localStorage
-    const clientSecret = localStorage.getItem("clientSecret");
-
-    // Create a Web Worker to handle WebSocket communication in a separate thread
     const worker = new Worker(
         URL.createObjectURL(
             new Blob([
@@ -29,25 +14,42 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                 let lastSeen = Date.now();
                 let reconnectAttempts = 0;
                 const maxReconnectDelay = 30000;
-
+                
+                // Instead of hardcoding clientSecret, we'll receive it via messages
+                let clientSecret = null;
                 let keepAliveTimeout = 30000;
                 let updateInterval = 5000;
                 let messageDelimiter = ";";
+                
+                // Add handler for control messages from main thread
+                self.onmessage = function(event) {
+                    if (event.data.type === 'control') {
+                        switch(event.data.action) {
+                            case 'connect':
+                                clientSecret = event.data.clientSecret;
+                                connect();
+                                break;
+                            case 'updateSecret':
+                                clientSecret = event.data.clientSecret;
+                                break;
+                            case 'message':
+                                handleMessageFromMainThread(event.data.message);
+                                break;
+                        }
+                    } else {
+                        handleMessageFromMainThread(event.data);
+                    }
+                };
 
-                /**
-                 * Sends batched messages to the server or a keep-alive message if idle.
-                 */
                 function sendMessages() {
                     const now = Date.now();
                     if (outgoing.length) {
-                        // Send all queued messages as a single batch
                         const batch = outgoing.join(messageDelimiter);
                         ${DEBUG ? 'console.log("[SOCKET] Sending messages to server:", batch);' : ""}
                         socket.send(batch);
-                        outgoing = []; // Clear the queue
+                        outgoing = [];
                         lastSeen = now;
                     } else if (now - lastSeen > keepAliveTimeout * 0.5) {
-                        // Send a keep-alive message if the connection is idle
                         const keepAliveMessage = JSON.stringify({ type: "alive" });
                         ${DEBUG ? 'console.log("[SOCKET] Sending keep-alive message:", keepAliveMessage);' : ""}
                         socket.send(keepAliveMessage);
@@ -55,150 +57,118 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
                     }
                 }
 
-                /**
-                 * Calculates the delay for the next reconnection attempt using exponential backoff.
-                 * @returns {number} - The delay in milliseconds.
-                 */
                 function getReconnectDelay() {
                     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), maxReconnectDelay);
                     reconnectAttempts++;
                     return delay;
                 }
 
-                /**
-                 * Establishes a WebSocket connection and sets up event listeners.
-                 */
                 function connect() {
                     socket = new WebSocket("${url}");
-
-                    // Connection opened
+                    
                     socket.addEventListener("open", () => {
                         ${DEBUG ? 'console.log("[SOCKET] Connected to WebSocket server");' : ""}
-                        reconnectAttempts = 0; // Reset reconnection attempts on successful connection
-
-                        // Send an "init" message with the clientSecret (passed from the main thread)
+                        reconnectAttempts = 0;
+                        
                         const initMessage = JSON.stringify({
                             type: "init",
-                            clientSecret: ${clientSecret ? `"${clientSecret}"` : null},
+                            clientSecret: clientSecret
                         });
                         ${DEBUG ? 'console.log("[SOCKET] Sending init message:", initMessage);' : ""}
                         socket.send(initMessage);
-
-                        // Start the interval for sending messages
+                        
                         intervalId = setInterval(sendMessages, updateInterval);
                     });
 
-                    // Message received from the server
                     socket.addEventListener("message", (event) => {
                         ${DEBUG ? 'console.log("[SOCKET] Received message from server:", event.data);' : ""}
-                        // Split combined messages using the delimiter
                         const messages = event.data.split(messageDelimiter);
                         messages.forEach((message) => {
                             try {
-                                // Parse each message and forward to the main thread
                                 const parsedMessage = JSON.parse(message);
-
-                                // Adjust keepAliveTimeout and updateInterval if provided in init message
                                 const { type } = parsedMessage;
+                                
+                                // Forward all messages to main thread
+                                postMessage(parsedMessage);
+                                
                                 if (type === "init") {
-                                    const { clientId, keepAliveTimeout: newKeepAliveTimeout, updateInterval: newUpdateInterval } = parsedMessage;
-                                    ${DEBUG ? 'console.log("[SOCKET] clientId " + clientId);' : ""}
+                                    // Let main thread handle clientSecret updates
+                                    const { keepAliveTimeout: newKeepAliveTimeout, updateInterval: newUpdateInterval } = parsedMessage;
                                     if (newKeepAliveTimeout) {
                                         keepAliveTimeout = newKeepAliveTimeout;
-                                        ${DEBUG ? 'console.log("[SOCKET] Set keepAliveTimeout to " + keepAliveTimeout);' : ""}
                                     }
                                     if (newUpdateInterval) {
                                         updateInterval = newUpdateInterval;
-                                        ${DEBUG ? 'console.log("[SOCKET] Set updateInterval to " + updateInterval);' : ""}
-                                        clearInterval(intervalId); // Stop the message interval
-                                        // Start the interval for sending messages
+                                        clearInterval(intervalId);
                                         intervalId = setInterval(sendMessages, updateInterval);
                                     }
                                 }
-
-                                postMessage(parsedMessage);
                             } catch (error) {
                                 console.error("[SOCKET] Failed to parse message:", message, error);
                             }
                         });
                     });
 
-                    // WebSocket error
                     socket.addEventListener("error", (error) => {
                         console.error("[SOCKET] WebSocket error:", error);
                     });
 
-                    // Connection closed
                     socket.addEventListener("close", () => {
                         ${DEBUG ? 'console.log("[SOCKET] Disconnected from WebSocket server");' : ""}
-                        clearInterval(intervalId); // Stop the message interval
-
-                        // Reconnect after a delay using exponential backoff
+                        clearInterval(intervalId);
                         const delay = getReconnectDelay();
                         ${DEBUG ? "console.log(`[SOCKET] Reconnecting in ${delay / 1000} seconds...`);" : ""}
                         setTimeout(connect, delay);
                     });
                 }
 
-                /**
-                 * Processes messages received from the main thread.
-                 * @param {MessageEvent} event - The message event.
-                 */
-                function handleMessageFromMainThread(event) {
+                function handleMessageFromMainThread(message) {
                     try {
-                        const message = JSON.stringify(event.data);
-                        ${DEBUG ? 'console.log("[SOCKET] Received message from main thread:", message);' : ""}
-
-                        // Check if the message contains the delimiter
-                        if (message.includes(messageDelimiter)) {
+                        const messageStr = JSON.stringify(message);
+                        ${DEBUG ? 'console.log("[SOCKET] Received message from main thread:", messageStr);' : ""}
+                        
+                        if (messageStr.includes(messageDelimiter)) {
                             throw new Error("Message contains the reserved delimiter character");
                         }
-
-                        // Add the message to the outgoing queue
-                        outgoing.push(message);
+                        
+                        outgoing.push(messageStr);
                     } catch (error) {
                         console.error("[SOCKET] Error processing message:", error);
                         postMessage({
                             type: "error",
-                            message: "Error processing message",
+                            message: "Error processing message"
                         });
                     }
                 }
-
-                // Listen for messages from the main thread
-                self.onmessage = handleMessageFromMainThread;
-
-                // Initialize the WebSocket connection
-                connect();
             `,
             ])
         )
     );
 
-    // Listen for messages from the worker
+    // Handle messages from the worker
     worker.onmessage = (event) => {
-        const { type, clientId, clientSecret } = event.data;
+        const { type, clientId, clientSecret: newClientSecret } = event.data;
 
-        // Handle "init" response from the server
-        if (type === "init") {
-            if (DEBUG)
-                console.log("[SOCKET] Init response from server:", event.data);
-            if (clientSecret) {
-                // Retrieve the clientSecret from localStorage
-                const storedClientSecret = localStorage.getItem("clientSecret");
+        // Handle init response from server
+        if (type === "init" && newClientSecret) {
+            if (clientSecret !== newClientSecret) {
+                if (DEBUG)
+                    console.log(
+                        `[SOCKET] Updating client secret from ${clientSecret} to ${newClientSecret}`
+                    );
+                clientSecret = newClientSecret;
+                localStorage.setItem("clientSecret", clientSecret);
 
-                // If clientSecret has changed, save the new clientSecret
-                if (storedClientSecret !== clientSecret) {
-                    localStorage.setItem("clientSecret", clientSecret);
-                    if (DEBUG)
-                        console.log(
-                            "[SOCKET] New secret saved to localStorage"
-                        );
-                }
+                // Update the worker's clientSecret
+                worker.postMessage({
+                    type: "control",
+                    action: "updateSecret",
+                    clientSecret,
+                });
             }
         }
 
-        // Call the appropriate handler for the message type
+        // Call the appropriate message handler
         if (messageHandler[type]) {
             messageHandler[type](event.data);
         } else {
@@ -206,12 +176,22 @@ export function createSocketManager(url, messageHandler = {}, options = {}) {
         }
     };
 
-    // Return the public API
+    // Tell the worker the localStorage secret and start the connection
+    worker.postMessage({
+        type: "control",
+        action: "connect",
+        clientSecret,
+    });
+
     return {
         send: (message) => {
             if (DEBUG)
                 console.log("[SOCKET] Sending message to worker:", message);
-            worker.postMessage(message);
+            worker.postMessage({
+                type: "control",
+                action: "message",
+                message,
+            });
         },
         close: () => {
             if (DEBUG) console.log("[SOCKET] Terminating worker");

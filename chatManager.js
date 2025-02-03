@@ -185,19 +185,15 @@ export function createChatManager() {
      */
     function sendMessage() {
         const messageText = messageInput.value.trim();
-        if (messageText && currentChannel) {
-            addMessage(messageText, "sent", currentChannel);
-            messageInput.value = "";
+        if (!messageText || !currentChannel) return;
 
-            // Simulate receiving a response
-            setTimeout(() => {
-                addMessage(
-                    "Thanks for your message!",
-                    "received",
-                    currentChannel
-                );
-            }, 1000);
-        }
+        addMessage(messageText, "sent", currentChannel);
+        messageInput.value = "";
+
+        // Simulate receiving a response
+        setTimeout(() => {
+            addMessage("Thanks for your message!", "received", currentChannel);
+        }, 1000);
     }
 
     /**
