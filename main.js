@@ -1,4 +1,3 @@
-// Simple Chat Implementation
 class ChatApp {
     constructor(wsUrl = "ws://localhost:8080") {
         // DOM elements
@@ -24,10 +23,16 @@ class ChatApp {
         this.reconnectAttempts = 0;
         this.wsUrl = wsUrl;
 
+        this.sendBuffer = [];
+
         // Initialize
         this.loadState();
         this.setupEventListeners();
         this.connectWebSocket();
+
+        console.log("Starting maintenance interval...");
+        setInterval(this.maintenance.bind(this), 2000);
+
         this.setChatHeight("restored");
     }
 
@@ -55,11 +60,22 @@ class ChatApp {
         this.loadMessagesForChannel(this.currentChannel);
     }
 
+    handleChatInput() {
+        const text = this.messageInput.value.trim();
+        this.sendMessage({
+            type: "message",
+            text,
+            channel: this.currentChannel,
+        });
+        this.messageInput.value = "";
+        this.addMessage(text, "sent", this.currentChannel);
+    }
+
     setupEventListeners() {
         // Message sending
-        this.sendButton.addEventListener("click", () => this.sendMessage());
+        this.sendButton.addEventListener("click", () => this.handleChatInput());
         this.messageInput.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") this.sendMessage();
+            if (e.key === "Enter") this.handleChatInput();
         });
 
         // Height controls
@@ -129,12 +145,7 @@ class ChatApp {
 
         this.socket.onopen = () => {
             this.reconnectAttempts = 0;
-            this.socket.send(
-                JSON.stringify({
-                    type: "init",
-                    clientSecret: this.clientSecret,
-                })
-            );
+            this.sendMessage({ type: "init", clientSecret: this.clientSecret });
         };
 
         this.socket.onmessage = (event) => {
@@ -150,6 +161,7 @@ class ChatApp {
         };
 
         this.socket.onclose = () => {
+            console.log("onclose");
             const delay = Math.min(
                 1000 * Math.pow(2, this.reconnectAttempts++),
                 30000
@@ -159,11 +171,15 @@ class ChatApp {
     }
 
     handleServerMessage(data) {
+        console.log("Received <-", data);
         switch (data.type) {
             case "init":
                 if (data.clientSecret) {
                     this.clientSecret = data.clientSecret;
                     localStorage.setItem("clientSecret", this.clientSecret);
+                }
+                if (!data.rejoin) {
+                    this.clearState();
                 }
                 break;
             case "message":
@@ -194,22 +210,14 @@ class ChatApp {
                 this.clearState();
                 this.addMessage(data.message, "received", "Event");
                 break;
+            default:
+                console.log(`Unhandled message type "${data.type}"`);
+                break;
         }
     }
 
-    sendMessage() {
-        const text = this.messageInput.value.trim();
-        if (!text) return;
-
-        this.addMessage(text, "sent", this.currentChannel);
-        this.socket.send(
-            JSON.stringify({
-                type: "message",
-                content: text,
-                channel: this.currentChannel,
-            })
-        );
-        this.messageInput.value = "";
+    sendMessage(message) {
+        this.sendBuffer.push(JSON.stringify(message));
     }
 
     addMessage(text, type, channel) {
@@ -286,11 +294,38 @@ class ChatApp {
             this.saveState();
         }
     }
+
+    maintenance() {
+        // Send heartbeat/ping if needed
+        if (
+            !this.sendBuffer.length &&
+            Date.now() - (this.lastHeartbeat || 0) > this.keepAliveTimeout
+        ) {
+        }
+
+        // Flush buffered messages
+        if (this.sendBuffer.length) {
+            new Promise((resolve, reject) => {
+                if (this.socket.readyState !== WebSocket.OPEN) {
+                    reject(new Error("WebSocket not connected"));
+                    return;
+                }
+                try {
+                    const bufferedMessages = this.sendBuffer;
+                    this.sendBuffer = [];
+                    const sendMessages = bufferedMessages.join(";");
+                    console.log("Sending server -> ", sendMessages);
+                    this.socket.send(sendMessages);
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+    }
 }
 
 // Initialize the chat app when the DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
     new ChatApp();
 });
-
-const chatApp = new ChatApp("ws://localhost:8080");
