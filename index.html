@@ -3,54 +3,254 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>A fragile peace that burns within</title>
-        <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
-        <link rel="stylesheet" href="styles.css" />
+        <title>DeepSeek Chat Client</title>
+        <style>
+            body {
+                margin: 0;
+                display: flex;
+                height: 100vh;
+                font-family: Arial, sans-serif;
+            }
+            .sidebar {
+                width: 60px;
+                background: #222;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding-top: 20px;
+                z-index: 2;
+            }
+            .sidebar button {
+                background: none;
+                border: none;
+                color: white;
+                font-size: 18px;
+                cursor: pointer;
+                margin: 10px 0;
+            }
+            .chat-wrapper {
+                flex: 1;
+                display: flex;
+                overflow: hidden;
+            }
+            .chat-container {
+                display: flex;
+                flex-direction: column;
+                transition: width 0.3s ease-in-out;
+                width: 30%;
+                min-width: 30%;
+                max-width: 30%;
+                overflow: hidden;
+            }
+            .hidden {
+                width: 0;
+                min-width: 0;
+                max-width: 0;
+            }
+            .messages {
+                flex: 1;
+                padding: 20px;
+                overflow-y: auto;
+                background: #f4f4f4;
+                display: flex;
+                flex-direction: column;
+            }
+            .input-area {
+                display: flex;
+                padding: 10px;
+                background: white;
+                border-top: 1px solid #ddd;
+            }
+            .input-area input {
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .keyboard-shortcuts {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 20px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                display: none;
+                z-index: 10;
+            }
+        </style>
     </head>
-
     <body>
-        <div class="container">
-            <div class="controls">
-                <button id="height-control-up-button" title="Maximize">
-                    ▲
-                </button>
-                <button id="height-control-down-button" title="Minimize">
-                    ▼
-                </button>
-            </div>
-            <div class="messages-pane">
-                <div id="message-container">
-                    <!-- Messages will be dynamically added here -->
-                </div>
-            </div>
-            <div class="panes">
-                <div class="channels-pane">
-                    <div class="dropdown">
-                        <button
-                            id="channel-dropdown-button"
-                            class="dropdown-button"
-                        >
-                            <span id="selected-channel">Select a channel</span>
-                            <span class="arrow">▼</span>
-                        </button>
-                        <div
-                            id="channel-dropdown-list"
-                            class="dropdown-content"
-                        >
-                            <!-- Channels will be dynamically added here -->
-                        </div>
-                    </div>
-                </div>
-                <div class="prompt-pane">
+        <div class="sidebar">
+            <button onclick="toggleChat()">[| ]</button>
+        </div>
+        <div class="chat-wrapper">
+            <div class="chat-container" id="chatContainer">
+                <div class="messages" id="messages"></div>
+                <div class="input-area">
                     <input
                         type="text"
-                        id="message-input"
-                        placeholder="Type your message here..."
+                        id="chatInput"
+                        placeholder="Type a message..."
                     />
-                    <button id="send-button">Send</button>
                 </div>
             </div>
         </div>
-        <script type="module" src="./main.js"></script>
+        <div class="keyboard-shortcuts" id="keyboardShortcuts">
+            <h3>Keyboard Shortcuts</h3>
+            <ul>
+                <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
+                <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
+            </ul>
+        </div>
+        <script>
+            const keyboardShortcuts =
+                document.getElementById("keyboardShortcuts");
+            const chatInput = document.getElementById("chatInput");
+
+            document.addEventListener("keydown", (event) => {
+                if (event.ctrlKey && event.key === "/") {
+                    keyboardShortcuts.style.display =
+                        keyboardShortcuts.style.display === "none"
+                            ? "block"
+                            : "none";
+                }
+                if (event.ctrlKey && event.key === "Enter") {
+                    toggleChat();
+                }
+            });
+
+            chatInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    const message = chatInput.value.trim();
+                    displayMessage(message, "sent");
+                    worker.postMessage({ type: "message", content: message });
+                    chatInput.value = "";
+                }
+            });
+
+            function toggleChat() {
+                const chatContainer = document.getElementById("chatContainer");
+                const button = document.querySelector(".sidebar button");
+                chatContainer.classList.toggle("hidden");
+                if (chatContainer.classList.contains("hidden")) {
+                    chatInput.blur();
+                    button.textContent = "[ |]";
+                } else {
+                    chatInput.focus();
+                    button.textContent = "[| ]";
+                }
+            }
+
+            function displayMessage(text, type) {
+                const messageContainer = document.getElementById("messages");
+                const newMessage = document.createElement("div");
+                newMessage.textContent = text;
+                newMessage.style.padding = "10px";
+                newMessage.style.margin = "5px 0";
+                newMessage.style.borderRadius = "5px";
+                newMessage.style.background =
+                    type === "sent" ? "#007bff" : "#ddd";
+                newMessage.style.color = type === "sent" ? "white" : "black";
+                messageContainer.appendChild(newMessage);
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            }
+
+            const worker = new Worker(
+                URL.createObjectURL(
+                    new Blob([
+                        `
+                        let wsUrl = "localhost:8080";
+                        let socket = null;
+                        let sendBuffer = [];
+                        let reconnectAttempts = 0;
+                        let keepAliveTimeout = 30000;
+                        let lastSentTime = 0;
+
+                        setInterval(maintenance, 2000);
+
+                        function connect() {
+                            socket = new WebSocket(wsUrl);
+
+                            socket.onopen = () => {
+                                reconnectAttempts = 0;
+                                sendMessage({ type: "init" });
+                            };
+
+                            socket.onmessage = (event) => {
+                                const messages = event.data.split("\\n");
+                                messages.forEach((msg) => {
+                                    try {
+                                        const data = JSON.parse(msg);
+                                        postMessage(data);
+                                    } catch (error) {
+                                        console.error("Failed to parse message:", msg);
+                                    }
+                                });
+                            };
+
+                            socket.onclose = () => {
+                                const delay = Math.min(
+                                    1000 * Math.pow(2, reconnectAttempts++),
+                                    30000
+                                );
+                                postMessage('{ type: "message", content: "WebSocket closed. Reconnecting " + Math.round(delay / 1000) + "}s..." }');
+                                setTimeout(() => connect(), delay);
+                            };
+                        }
+
+                        function sendMessage(message) {
+                            sendBuffer.push(JSON.stringify(message));
+                        }
+
+                        function maintenance() {
+                            if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout * 0.8) {
+                                sendBuffer.push(JSON.stringify({ type: "ping" }));
+                            }
+
+                            if (sendBuffer.length) {
+                                if (socket.readyState !== WebSocket.OPEN) return;
+                                try {
+                                    const bufferedMessages = sendBuffer;
+                                    sendBuffer = [];
+                                    socket.send(bufferedMessages.join("\\n"));
+                                    lastSentTime = Date.now();
+                                } catch (error) {
+                                    console.error("WebSocket send error:", error);
+                                }
+                            }
+                        }
+
+                        self.onmessage = function(event) {
+                            if (event.data.type === "connect") {
+                                wsUrl = event.data.url;
+                                clientSecret = event.data.clientSecret;
+                                connect();
+                            } else {
+                                sendMessage(event.data);
+                            }
+                        };
+
+                    `,
+                    ])
+                )
+            );
+
+            worker.onmessage = (event) => {
+                console.log("Received <-", event.data);
+                if (event.data.type === "message") {
+                    displayMessage(event.data.content, "received");
+                }
+            };
+
+            worker.postMessage({
+                type: "connect",
+                url: "ws://localhost:8080",
+                clientSecret: localStorage.getItem("clientSecret"),
+            });
+        </script>
     </body>
 </html>

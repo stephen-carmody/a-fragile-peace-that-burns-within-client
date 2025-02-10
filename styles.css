@@ -7,8 +7,9 @@
 body,
 html {
     height: 100%;
-    font-family: Arial, sans-serif;
-    background-color: #ffffff; /* White background for the entire page */
+    font-family: "Courier New", monospace;
+    background-color: #282c34;
+    color: #abb2bf;
     overflow: hidden;
 }
 
@@ -17,190 +18,193 @@ html {
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 30%; /* Default height changed to 30% */
+    height: 30%;
     display: flex;
     flex-direction: column;
-    background-color: rgba(
-        255,
-        255,
-        255,
-        0.95
-    ); /* Slightly transparent white */
-    border-top: 1px solid #e0e0e0; /* Light border for separation */
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05); /* Subtle shadow for depth */
-    transition: height 0.3s ease;
+    background-color: #282c34;
+    border-top: 1px solid #5c6370;
 }
 
-.controls {
-    position: absolute;
-    top: -10px;
-    right: 0;
-    padding: 2px;
-    border-bottom-left-radius: 5px;
-    border-bottom-right-radius: 5px;
-    z-index: 10;
+/* Channels pane styling - now properly at top */
+.channels-pane {
+    background-color: #21252b;
+    padding: 0 4px;
+    border-bottom: 1px solid #5c6370;
     display: flex;
-    gap: 5px;
-    background-color: transparent; /* Removed background */
+    gap: 2px;
+    height: 32px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    order: 0; /* Ensure it's first */
 }
 
-.controls button {
-    background: none;
-    border: none;
-    font-size: 13px;
-    cursor: pointer;
-    margin: 0;
-    color: #333; /* Dark text for contrast */
-}
-
-.controls button:hover {
-    background-color: #f0f0f0; /* Light gray on hover */
-    border-radius: 3px;
-}
-
+/* Messages pane - in the middle */
 .messages-pane {
-    flex: 1; /* Take up remaining space */
-    background-color: #ffffff; /* White background */
+    flex: 1;
+    padding: 8px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+    background-color: #282c34;
+    order: 1;
 }
 
+/* Input area - at the bottom */
 .panes {
     display: flex;
-    flex-direction: row;
+    padding: 8px;
+    background-color: #21252b;
+    border-top: 1px solid #5c6370;
+    order: 2;
 }
 
-.channels-pane {
-    width: 12em; /* Updated width to 15em */
-    background-color: #ffffff; /* White background */
-    padding: 10px;
-    position: relative; /* Needed for dropdown positioning */
-    display: flex;
-    flex-direction: column;
-}
-
-.dropdown {
-    position: relative;
-    display: inline-block;
-    width: 100%; /* Ensure the dropdown takes up the full width of its parent */
-}
-
+/* Hide original dropdown button */
 .dropdown-button {
-    width: 100%; /* Take up the full width of the dropdown container */
-    height: 40px; /* Set a fixed height for the dropdown button */
-    display: flex;
-    align-items: center; /* Vertically center the text and arrow */
-    justify-content: space-between;
-    padding: 10px;
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #333;
-}
-
-.dropdown-button:hover {
-    background-color: #f5f5f5;
-}
-
-.dropdown-button .arrow {
-    font-size: 12px;
-    margin-left: 10px;
-}
-
-.dropdown-content {
     display: none;
-    position: absolute;
-    width: 100%; /* Match the width of the dropdown-button */
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-    bottom: 100%; /* Position the dropdown above the button */
-    margin-bottom: 5px; /* Add some space between the button and the dropdown */
 }
 
-.dropdown-content.show {
-    display: block;
+/* Horizontal tabs */
+.dropdown-content {
+    display: flex !important;
+    position: static;
+    background: none;
+    border: none;
+    width: auto;
+    max-height: none;
+    margin: 0;
+    overflow: visible;
 }
 
 .dropdown-content div {
-    padding: 10px;
+    padding: 6px 16px;
     cursor: pointer;
-    color: #333;
-    font-size: 14px;
+    background: #282c34;
+    border: 1px solid #5c6370;
+    border-bottom: none;
+    margin-top: 4px;
+    border-radius: 4px 4px 0 0;
+    font-size: 12px;
+    position: relative;
+    white-space: nowrap;
 }
 
 .dropdown-content div:hover {
-    background-color: #f5f5f5;
+    background-color: #2c313a;
+    color: #61afef;
 }
 
 .dropdown-content div.selected {
-    background-color: #007bff;
-    color: white;
+    background-color: #2c313a;
+    color: #61afef;
+    border-bottom: 2px solid #61afef;
+    padding-bottom: 5px;
 }
 
 .prompt-pane {
+    width: 100%;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    width: calc(100% - 12em); /* Adjusted width to account for channels-pane */
-    padding: 10px;
-}
-
-#message-container {
-    flex-grow: 1;
-    overflow-y: auto;
+    gap: 8px;
 }
 
 #message-input {
     flex-grow: 1;
-    padding: 10px;
-    border: 1px solid #e0e0e0;
+    background: #2c313a;
+    border: 1px solid #5c6370;
     border-radius: 4px;
+    color: #abb2bf;
+    font-family: "Courier New", monospace;
     font-size: 14px;
-    line-height: 1.5;
-    height: 40px; /* Match the height of the dropdown button */
-    box-sizing: border-box; /* Ensure padding is included in the height */
+    outline: none;
+    padding: 8px;
+}
+
+#message-input::placeholder {
+    color: #5c6370;
 }
 
 #send-button {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
+    background: #2c313a;
+    border: 1px solid #5c6370;
     border-radius: 4px;
+    color: #abb2bf;
     cursor: pointer;
-    height: 40px; /* Match the height of the dropdown button */
-    box-sizing: border-box; /* Ensure padding is included in the height */
-    flex-shrink: 0; /* Prevent the button from shrinking */
+    font-family: "Courier New", monospace;
+    padding: 8px 16px;
+    white-space: nowrap;
 }
 
 #send-button:hover {
-    background-color: #0056b3;
+    background-color: #3e4451;
+    border-color: #61afef;
+    color: #61afef;
 }
 
 .message {
-    margin-bottom: 1px;
+    margin: 2px 0;
     padding: 4px;
-    border-radius: 4px;
-    line-height: 1;
+    font-size: 14px;
+    line-height: 1.4;
 }
 
 .message.sent {
-    margin-left: 25%; /* Indent sent messages by 25% */
-    background-color: #e3f2fd; /* Light blue background for sent messages */
-    align-self: flex-end;
+    margin-left: 25%;
+    color: #98c379;
+}
+
+.message.sent::before {
+    content: "→ ";
+    color: #61afef;
 }
 
 .message.received {
-    margin-right: 25%; /* Left-align received messages with 25% margin on the right */
-    background-color: transparent; /* No background color for received messages */
-    align-self: flex-start;
-    color: #333; /* Dark text for contrast */
+    margin-right: 25%;
+    color: #e5c07b;
+}
+
+.message.received::before {
+    content: "← ";
+    color: #61afef;
+}
+
+/* Controls */
+.controls {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 10;
+}
+
+.controls button {
+    background: #2c313a;
+    border: 1px solid #5c6370;
+    color: #abb2bf;
+    cursor: pointer;
+    font-family: "Courier New", monospace;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.controls button:hover {
+    background-color: #3e4451;
+    border-color: #61afef;
+    color: #61afef;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #21252b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #5c6370;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #61afef;
 }
