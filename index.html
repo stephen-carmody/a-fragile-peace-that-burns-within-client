@@ -240,9 +240,12 @@
             );
 
             worker.onmessage = (event) => {
-                console.log("Received <-", event.data);
-                if (event.data.type === "message") {
-                    displayMessage(event.data.content, "received");
+                const data = event.data;
+                console.log("Received <-", data);
+                if (data.type === "init") {
+                    if (data.clientSecret) localStorage.setItem("clientSecret", data.clientSecret);
+                } else if (data.type === "message") {
+                    displayMessage(data.content, "received");
                 }
             };
 
