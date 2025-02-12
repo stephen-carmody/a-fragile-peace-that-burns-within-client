@@ -1,169 +1,213 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DeepSeek Chat Client</title>
-        <style>
-            body {
-                margin: 0;
-                display: flex;
-                height: 100vh;
-                font-family: Arial, sans-serif;
-            }
-            .sidebar {
-                width: 60px;
-                background: #222;
-                color: white;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding-top: 20px;
-                z-index: 2;
-            }
-            .sidebar button {
-                background: none;
-                border: none;
-                color: white;
-                font-size: 18px;
-                cursor: pointer;
-                margin: 10px 0;
-            }
-            .chat-wrapper {
-                flex: 1;
-                display: flex;
-                overflow: hidden;
-            }
-            .chat-container {
-                display: flex;
-                flex-direction: column;
-                transition: width 0.3s ease-in-out;
-                width: 30%;
-                min-width: 30%;
-                max-width: 30%;
-                overflow: hidden;
-            }
-            .hidden {
-                width: 0;
-                min-width: 0;
-                max-width: 0;
-            }
-            .messages {
-                flex: 1;
-                padding: 20px;
-                overflow-y: auto;
-                background: #f4f4f4;
-                display: flex;
-                flex-direction: column;
-            }
-            .input-area {
-                display: flex;
-                padding: 10px;
-                background: white;
-                border-top: 1px solid #ddd;
-            }
-            .input-area input {
-                flex: 1;
-                padding: 10px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-            .keyboard-shortcuts {
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: white;
-                padding: 20px;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                display: none;
-                z-index: 10;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="sidebar">
-            <button onclick="toggleChat()">[| ]</button>
-        </div>
-        <div class="chat-wrapper">
-            <div class="chat-container" id="chatContainer">
-                <div class="messages" id="messages"></div>
-                <div class="input-area">
-                    <input
-                        type="text"
-                        id="chatInput"
-                        placeholder="Type a message..."
-                    />
-                </div>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat Client</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        .sidebar {
+            width: 60px;
+            background: #222;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+            z-index: 2;
+        }
+
+        .sidebar button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+
+        .sidebar .channelBtn {
+            color: transparent;
+            border-radius: 2px;
+        }
+
+        .chat-wrapper {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease-in-out;
+            width: 30%;
+            min-width: 30%;
+            max-width: 30%;
+            overflow: hidden;
+        }
+
+        .hidden {
+            width: 0;
+            min-width: 0;
+            max-width: 0;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+
+        .input-area {
+            display: flex;
+            padding: 10px;
+            background: white;
+            border-top: 1px solid #ddd;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #keybindPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <button onclick="toggleChat()">❮❮</button>
+        <button onclick="setChannel('global')" class="channelBtn" data-channel="global">🗫</button>
+        <button onclick="setChannel('local')" class="channelBtn" data-channel="local">🗬</button>
+    </div>
+    <div class="chat-wrapper">
+        <div class="chat-container" id="chatContainer">
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="chatInput" placeholder="Type a message..." />
             </div>
         </div>
-        <div class="keyboard-shortcuts" id="keyboardShortcuts">
-            <h3>Keyboard Shortcuts</h3>
-            <ul>
-                <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
-                <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
-            </ul>
-        </div>
-        <script>
-            const keyboardShortcuts =
-                document.getElementById("keyboardShortcuts");
-            const chatInput = document.getElementById("chatInput");
+    </div>
+    <div class="keyboard-shortcuts" id="keybindPopup">
+        <h3>Keyboard Shortcuts</h3>
+        <ul>
+            <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
+            <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
+        </ul>
+    </div>
+    <script>
+        const keybindPopup =
+            document.getElementById("keybindPopup");
+        const chatInput = document.getElementById("chatInput");
+        const messagesContainer = document.getElementById("messages");
+        const chatContainer = document.getElementById("chatContainer");
 
-            document.addEventListener("keydown", (event) => {
-                if (event.ctrlKey && event.key === "/") {
-                    keyboardShortcuts.style.display =
-                        keyboardShortcuts.style.display === "none"
-                            ? "block"
-                            : "none";
-                }
-                if (event.ctrlKey && event.key === "Enter") {
-                    toggleChat();
-                }
-            });
+        let currentChannel = 'global';
+        setChannel(currentChannel);
 
-            chatInput.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    const message = chatInput.value.trim();
-                    displayMessage(message, "sent");
-                    worker.postMessage({ type: "message", content: message });
-                    chatInput.value = "";
-                }
-            });
-
-            function toggleChat() {
-                const chatContainer = document.getElementById("chatContainer");
-                const button = document.querySelector(".sidebar button");
-                chatContainer.classList.toggle("hidden");
-                if (chatContainer.classList.contains("hidden")) {
-                    chatInput.blur();
-                    button.textContent = "[ |]";
-                } else {
-                    chatInput.focus();
-                    button.textContent = "[| ]";
-                }
+        document.addEventListener("keydown", (event) => {
+            if (event.ctrlKey && event.key === "/") {
+                keybindPopup.style.display =
+                    keybindPopup.style.display === "none"
+                        ? "block"
+                        : "none";
             }
-
-            function displayMessage(text, type) {
-                const messageContainer = document.getElementById("messages");
-                const newMessage = document.createElement("div");
-                newMessage.textContent = text;
-                newMessage.style.padding = "10px";
-                newMessage.style.margin = "5px 0";
-                newMessage.style.borderRadius = "5px";
-                newMessage.style.background =
-                    type === "sent" ? "#007bff" : "#ddd";
-                newMessage.style.color = type === "sent" ? "white" : "black";
-                messageContainer.appendChild(newMessage);
-                messageContainer.scrollTop = messageContainer.scrollHeight;
+            if (event.ctrlKey && event.key === "Enter") {
+                toggleChat();
             }
+        });
 
-            const worker = new Worker(
-                URL.createObjectURL(
-                    new Blob([
-                        `
+        chatInput.addEventListener("keydown", (event) => {
+            if (event.ctrlKey) return;
+            if (event.key === "Enter") {
+                const message = chatInput.value.trim();
+                displayMessage(message, "sent", currentChannel);
+                worker.postMessage({type: "message", content: message});
+                chatInput.value = "";
+            }
+        });
+
+        function toggleChat() {
+            const button = document.querySelector(".sidebar button");
+            chatContainer.classList.toggle("hidden");
+            if (chatContainer.classList.contains("hidden")) {
+                chatInput.blur();
+                button.textContent = "❯❯";
+            } else {
+                chatInput.focus();
+                button.textContent = "❮❮";
+            }
+        }
+
+        function displayMessage(text, type, channel) {
+            const newMessage = document.createElement("div");
+            newMessage.textContent = text;
+            newMessage.classList.add("message");
+            newMessage.dataset.channel = channel;
+            newMessage.style.background =
+                type === "sent" ? "#007bff" : "#ddd";
+            newMessage.style.color = type === "sent" ? "white" : "black";
+            newMessage.style.display = channel === currentChannel ? "block" : "none";
+            messagesContainer.appendChild(newMessage);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function setChannel(channel) {
+            currentChannel = channel;
+            filterMessages();
+            if (chatContainer.classList.contains("hidden")) {
+                toggleChat();
+            }
+            document.querySelectorAll(".channelBtn").forEach(btn => {
+                console.log(btn.dataset.channel, channel, btn.dataset.channel === channel);
+                btn.style.textShadow = btn.dataset.channel === channel ? "0 0 0 #87CEEB" : "0 0 0 white";
+            });
+        }
+
+        function filterMessages() {
+            document.querySelectorAll(".message").forEach(msg => {
+                msg.style.display = msg.dataset.channel === currentChannel ? "block" : "none";
+            });
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        const worker = new Worker(
+            URL.createObjectURL(
+                new Blob([
+                    `
                         let wsUrl = "localhost:8080";
+                        let clientSecret;
                         let socket = null;
                         let sendBuffer = [];
                         let reconnectAttempts = 0;
@@ -177,7 +221,7 @@
 
                             socket.onopen = () => {
                                 reconnectAttempts = 0;
-                                sendMessage({ type: "init" });
+                                sendMessage({ type: "init", clientSecret });
                             };
 
                             socket.onmessage = (event) => {
@@ -185,6 +229,9 @@
                                 messages.forEach((msg) => {
                                     try {
                                         const data = JSON.parse(msg);
+                                        if (data.type === "init" && data.clientSecret) {
+                                            clientSecret = data.clientSecret;
+                                        }
                                         postMessage(data);
                                     } catch (error) {
                                         console.error("Failed to parse message:", msg);
@@ -193,11 +240,14 @@
                             };
 
                             socket.onclose = () => {
-                                const delay = Math.min(
-                                    1000 * Math.pow(2, reconnectAttempts++),
-                                    30000
-                                );
-                                postMessage('{ type: "message", content: "WebSocket closed. Reconnecting " + Math.round(delay / 1000) + "}s..." }');
+                                let delay = 1000 * Math.pow(2, reconnectAttempts++);
+                                delay = Math.min(delay, 30000);
+                                let delaySecs = Math.round(delay / 1000);
+
+                                postMessage({
+                                    type: "message",
+                                    content: "WebSocket closed. Reconnecting " + delaySecs + "s..."
+                                });
                                 setTimeout(() => connect(), delay);
                             };
                         }
@@ -214,10 +264,11 @@
                             if (sendBuffer.length) {
                                 if (socket.readyState !== WebSocket.OPEN) return;
                                 try {
-                                    const bufferedMessages = sendBuffer;
+                                    const bufferedMessages = sendBuffer.join("\\n");
                                     sendBuffer = [];
-                                    socket.send(bufferedMessages.join("\\n"));
+                                    socket.send(bufferedMessages);
                                     lastSentTime = Date.now();
+                                    console.log("Sent ->", bufferedMessages);
                                 } catch (error) {
                                     console.error("WebSocket send error:", error);
                                 }
@@ -235,25 +286,26 @@
                         };
 
                     `,
-                    ])
-                )
-            );
+                ])
+            )
+        );
 
-            worker.onmessage = (event) => {
-                const data = event.data;
-                console.log("Received <-", data);
-                if (data.type === "init") {
-                    if (data.clientSecret) localStorage.setItem("clientSecret", data.clientSecret);
-                } else if (data.type === "message") {
-                    displayMessage(data.content, "received");
-                }
-            };
+        worker.onmessage = (event) => {
+            const data = event.data;
+            console.log("Received <-", data);
+            if (data.type === "init") {
+                if (data.clientSecret) localStorage.setItem("clientSecret", data.clientSecret);
+            } else if (data.type === "message") {
+                displayMessage(data.content, "received", data.channel);
+            }
+        };
 
-            worker.postMessage({
-                type: "connect",
-                url: "ws://localhost:8080",
-                clientSecret: localStorage.getItem("clientSecret"),
-            });
-        </script>
-    </body>
+        worker.postMessage({
+            type: "connect",
+            url: "ws://localhost:8080",
+            clientSecret: localStorage.getItem("clientSecret"),
+        });
+    </script>
+</body>
+
 </html>
