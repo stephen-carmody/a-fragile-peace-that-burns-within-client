@@ -1,311 +1,590 @@
 <!doctype html>
 <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Chat Client</title>
+        <style>
+            body {
+                margin: 0;
+                display: flex;
+                height: 100vh;
+                font-family: Arial, sans-serif;
+            }
 
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chat Client</title>
-    <style>
-        body {
-            margin: 0;
-            display: flex;
-            height: 100vh;
-            font-family: Arial, sans-serif;
-        }
+            .sidebar {
+                width: 60px;
+                background: #222;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding-top: 20px;
+                z-index: 2;
+            }
 
-        .sidebar {
-            width: 60px;
-            background: #222;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 20px;
-            z-index: 2;
-        }
+            .sidebar button {
+                background: none;
+                border: none;
+                color: white;
+                font-size: 18px;
+                cursor: pointer;
+                margin: 10px 0;
+            }
 
-        .sidebar button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 18px;
-            cursor: pointer;
-            margin: 10px 0;
-        }
+            .sidebar .channelBtn {
+                color: transparent;
+                border-radius: 2px;
+            }
 
-        .sidebar .channelBtn {
-            color: transparent;
-            border-radius: 2px;
-        }
+            .chat-container {
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                transition: width 0.3s ease-in-out;
+                overflow: hidden;
+            }
 
-        .chat-wrapper {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
+            .hidden {
+                width: 0;
+                min-width: 0;
+                max-width: 0;
+            }
 
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            transition: width 0.3s ease-in-out;
-            width: 30%;
-            min-width: 30%;
-            max-width: 30%;
-            overflow: hidden;
-        }
+            .messages {
+                flex: 1;
+                padding: 20px;
+                overflow-y: auto;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                flex-direction: column;
+            }
 
-        .hidden {
-            width: 0;
-            min-width: 0;
-            max-width: 0;
-        }
+            .message {
+                padding: 10px;
+                margin: 5px 0;
+                border-radius: 5px;
+            }
 
-        .messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #f4f4f4;
-            display: flex;
-            flex-direction: column;
-        }
+            .input-area {
+                display: flex;
+                padding: 10px;
+                background: rgba(0, 0, 0, 0.5);
+                border-top: 1px solid #ddd;
+            }
 
-        .message {
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 5px;
-        }
+            .input-area input {
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
 
-        .input-area {
-            display: flex;
-            padding: 10px;
-            background: white;
-            border-top: 1px solid #ddd;
-        }
+            div#keybindPopup {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 20px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                display: none;
+                z-index: 10;
+            }
 
-        .input-area input {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
+            .object-explorer {
+                display: flex;
+                width: 100%;
+                border-right: 1px solid #ddd;
+                transition: width 0.3s ease-in-out;
+                background: white;
+            }
 
-        #keybindPopup {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            display: none;
-            z-index: 10;
-        }
-    </style>
-</head>
+            .object-explorer.hidden {
+                width: 0;
+                overflow: hidden;
+            }
 
-<body>
-    <div class="sidebar">
-        <button onclick="toggleChat()">❮❮</button>
-        <button onclick="setChannel('global')" class="channelBtn" data-channel="global">🗫</button>
-        <button onclick="setChannel('local')" class="channelBtn" data-channel="local">🗬</button>
-    </div>
-    <div class="chat-wrapper">
-        <div class="chat-container" id="chatContainer">
-            <div class="messages" id="messages"></div>
-            <div class="input-area">
-                <input type="text" id="chatInput" placeholder="Type a message..." />
+            .explorer-column {
+                border-right: 1px solid #ddd;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            #parentColumn {
+                flex: 1;
+            }
+
+            #currentColumn {
+                flex: 2;
+            }
+
+            .explorer-column:last-child {
+                border-right: none;
+            }
+
+            .column-header {
+                padding: 8px;
+                background: #f4f4f4;
+                border-bottom: 1px solid #ddd;
+            }
+
+            .column-content {
+                flex: 1;
+                overflow-y: auto;
+            }
+
+            .object-item {
+                padding: 8px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+            }
+
+            .object-item:hover {
+                background: #f8f8f8;
+            }
+
+            .object-item.selected {
+                background: #e3f2fd;
+            }
+
+            .breadcrumb-link {
+                color: #0066cc;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+            .breadcrumb-link:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="sidebar">
+            <button id="toggleChatBtn">❮❮</button>
+            <button class="channelBtn" data-channel="global">🗫</button>
+            <button class="channelBtn" data-channel="local">🗬</button>
+        </div>
+        <div id="objectExplorer" class="object-explorer">
+            <div class="chat-container" id="chatContainer">
+                <div class="messages" id="messages"></div>
+                <div class="input-area">
+                    <input type="text" id="chatInput" placeholder="Type a message..." />
+                </div>
+            </div>
+            <div class="explorer-column" id="parentColumn">
+                <div class="column-header"></div>
+                <div class="column-content"></div>
+            </div>
+            <div class="explorer-column" id="currentColumn">
+                <div class="column-header">&nbsp;</div>
+                <div class="column-content"></div>
             </div>
         </div>
-    </div>
-    <div class="keyboard-shortcuts" id="keybindPopup">
-        <h3>Keyboard Shortcuts</h3>
-        <ul>
-            <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
-            <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
-        </ul>
-    </div>
-    <script>
-        const keybindPopup =
-            document.getElementById("keybindPopup");
-        const chatInput = document.getElementById("chatInput");
-        const messagesContainer = document.getElementById("messages");
-        const chatContainer = document.getElementById("chatContainer");
+        <div id="keybindPopup">
+            <h3>Keyboard Shortcuts</h3>
+            <ul>
+                <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
+                <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
+            </ul>
+        </div>
+        <script type="module">
+            const keybindPopup = document.getElementById("keybindPopup");
+            const chatInput = document.getElementById("chatInput");
+            const messagesContainer = document.getElementById("messages");
+            const chatContainer = document.getElementById("chatContainer");
+            const sidebarButton = document.querySelector(".sidebar button");
 
-        let currentChannel = 'global';
-        setChannel(currentChannel);
+            let currentChannel = "global";
+            setChannel(currentChannel);
 
-        document.addEventListener("keydown", (event) => {
-            if (event.ctrlKey && event.key === "/") {
-                keybindPopup.style.display =
-                    keybindPopup.style.display === "none"
-                        ? "block"
-                        : "none";
+            // Event Listeners
+
+            document.addEventListener("keydown", ({ ctrlKey, key }) => {
+                if (ctrlKey && key === "/") toggleVisibility(keybindPopup);
+                if (ctrlKey && key === "Enter") toggleChat();
+            });
+
+            chatInput.addEventListener("keydown", ({ key, ctrlKey }) => {
+                if (!ctrlKey && key === "Enter") sendMessage();
+            });
+
+            document
+                .getElementById("toggleChatBtn")
+                .addEventListener("click", () => toggleChat());
+
+            document.querySelectorAll(".channelBtn").forEach((btn) => {
+                btn.addEventListener("click", () => setChannel(btn.dataset.channel));
+            });
+
+            function toggleVisibility(element) {
+                element.style.display =
+                    element.style.display === "block" ? "none" : "block";
             }
-            if (event.ctrlKey && event.key === "Enter") {
-                toggleChat();
-            }
-        });
 
-        chatInput.addEventListener("keydown", (event) => {
-            if (event.ctrlKey) return;
-            if (event.key === "Enter") {
+            function toggleChat() {
+                chatContainer.classList.toggle("hidden");
+                sidebarButton.textContent = chatContainer.classList.contains("hidden")
+                    ? "❯❯"
+                    : "❮❮";
+                chatInput[
+                    chatContainer.classList.contains("hidden") ? "blur" : "focus"
+                ]();
+            }
+
+            function sendMessage() {
                 const message = chatInput.value.trim();
+                if (!message) return;
                 displayMessage(message, "sent", currentChannel);
-                worker.postMessage({type: "message", content: message});
+                worker.postMessage({ type: "message", content: message });
                 chatInput.value = "";
             }
-        });
 
-        function toggleChat() {
-            const button = document.querySelector(".sidebar button");
-            chatContainer.classList.toggle("hidden");
-            if (chatContainer.classList.contains("hidden")) {
-                chatInput.blur();
-                button.textContent = "❯❯";
-            } else {
-                chatInput.focus();
-                button.textContent = "❮❮";
+            function displayMessage(text, type, channel) {
+                const newMessage = document.createElement("div");
+                newMessage.textContent = text;
+                newMessage.classList.add("message");
+                newMessage.dataset.channel = channel;
+                //newMessage.style.background = type === "sent" ? "#007bff" : "#ddd";
+                newMessage.style.color = type === "sent" ? "white" : "black";
+                newMessage.style.display = channel === currentChannel ? "block" : "none";
+                messagesContainer.appendChild(newMessage);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
-        }
 
-        function displayMessage(text, type, channel) {
-            const newMessage = document.createElement("div");
-            newMessage.textContent = text;
-            newMessage.classList.add("message");
-            newMessage.dataset.channel = channel;
-            newMessage.style.background =
-                type === "sent" ? "#007bff" : "#ddd";
-            newMessage.style.color = type === "sent" ? "white" : "black";
-            newMessage.style.display = channel === currentChannel ? "block" : "none";
-            messagesContainer.appendChild(newMessage);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function setChannel(channel) {
-            currentChannel = channel;
-            filterMessages();
-            if (chatContainer.classList.contains("hidden")) {
-                toggleChat();
+            function setChannel(channel) {
+                currentChannel = channel;
+                filterMessages();
+                if (chatContainer.classList.contains("hidden")) toggleChat();
+                document.querySelectorAll(".channelBtn").forEach((btn) => {
+                    btn.style.textShadow =
+                        btn.dataset.channel === channel ? "0 0 0 #87CEEB" : "0 0 0 white";
+                });
             }
-            document.querySelectorAll(".channelBtn").forEach(btn => {
-                console.log(btn.dataset.channel, channel, btn.dataset.channel === channel);
-                btn.style.textShadow = btn.dataset.channel === channel ? "0 0 0 #87CEEB" : "0 0 0 white";
-            });
-        }
 
-        function filterMessages() {
-            document.querySelectorAll(".message").forEach(msg => {
-                msg.style.display = msg.dataset.channel === currentChannel ? "block" : "none";
-            });
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+            function filterMessages() {
+                document.querySelectorAll(".message").forEach((msg) => {
+                    msg.style.display =
+                        msg.dataset.channel === currentChannel ? "block" : "none";
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
 
-        const worker = new Worker(
-            URL.createObjectURL(
-                new Blob([
-                    `
-                        let wsUrl = "localhost:8080";
-                        let clientSecret;
-                        let socket = null;
-                        let sendBuffer = [];
-                        let reconnectAttempts = 0;
-                        let keepAliveTimeout = 30000;
-                        let lastSentTime = 0;
+            class ObjectExplorer {
+                constructor() {
+                    this.objects = new Map();
+                    this.currentObject = null;
 
-                        setInterval(maintenance, 2000);
+                    // Cache DOM elements
+                    this.explorerElement = document.getElementById("objectExplorer");
+                    this.parentColumn = document.getElementById("parentColumn");
+                    this.currentColumn = document.getElementById("currentColumn");
 
-                        function connect() {
-                            socket = new WebSocket(wsUrl);
+                    // Bind methods
+                    this.handleKeyDown = this.handleKeyDown.bind(this);
+                    this.processObject = this.processObject.bind(this);
+                    this.updateView = this.updateView.bind(this);
 
-                            socket.onopen = () => {
-                                reconnectAttempts = 0;
-                                sendMessage({ type: "init", clientSecret });
-                            };
+                    // Add keyboard event listener
+                    document.addEventListener("keydown", this.handleKeyDown);
+                }
 
-                            socket.onmessage = (event) => {
-                                const messages = event.data.split("\\n");
-                                messages.forEach((msg) => {
-                                    try {
-                                        const data = JSON.parse(msg);
-                                        if (data.type === "init" && data.clientSecret) {
-                                            clientSecret = data.clientSecret;
-                                        }
-                                        postMessage(data);
-                                    } catch (error) {
-                                        console.error("Failed to parse message:", msg);
-                                    }
-                                });
-                            };
+                formatObjectName(obj) {
+                    return `${obj.type}-${obj.id}`;
+                }
 
-                            socket.onclose = () => {
-                                let delay = 1000 * Math.pow(2, reconnectAttempts++);
-                                delay = Math.min(delay, 30000);
-                                let delaySecs = Math.round(delay / 1000);
+                processObject(message) {
+                    const [type, id, parent] = message.o.split("-");
+                    const newObject = {
+                        type,
+                        id,
+                        parent,
+                        ...message.p,
+                    };
 
-                                postMessage({
-                                    type: "message",
-                                    content: "WebSocket closed. Reconnecting " + delaySecs + "s..."
-                                });
-                                setTimeout(() => connect(), delay);
-                            };
+                    this.objects.set(id, newObject);
+
+                    // Set initial current object if none is selected
+                    if (!this.currentObject) {
+                        this.currentObject = newObject;
+                    }
+
+                    this.updateView();
+                }
+
+                getParentChain(obj) {
+                    const chain = [];
+                    let current = this.currentObject;
+                    while (current && chain.length < 2) {
+                        const parent = this.objects.get(current.parent);
+                        if (parent) {
+                            chain.unshift(parent);
+                            current = parent;
+                        } else {
+                            break;
+                        }
+                    }
+                    return chain;
+                }
+
+                createBreadcrumb(parentId) {
+                    if (!parentId) return "";
+
+                    const parentObj = this.objects.get(parentId);
+
+                    const chain = this.getParentChain(parentObj);
+                    let breadcrumb = "";
+
+                    if (chain.length > 0) {
+                        if (chain[0].parent) {
+                            breadcrumb +=
+                                '<span class="breadcrumb-link" data-id="' +
+                                chain[0].parent +
+                                '">...</span> / ';
                         }
 
-                        function sendMessage(message) {
-                            sendBuffer.push(JSON.stringify(message));
-                        }
-
-                        function maintenance() {
-                            if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout * 0.8) {
-                                sendBuffer.push(JSON.stringify({ type: "ping" }));
+                        chain.forEach((obj, index) => {
+                            breadcrumb +=
+                                '<span class="breadcrumb-link" data-id="' +
+                                obj.id +
+                                '">' +
+                                this.formatObjectName(obj) +
+                                "</span>";
+                            if (index < chain.length - 1) {
+                                breadcrumb += " / ";
                             }
+                        });
+                    }
 
-                            if (sendBuffer.length) {
-                                if (socket.readyState !== WebSocket.OPEN) return;
-                                try {
-                                    const bufferedMessages = sendBuffer.join("\\n");
-                                    sendBuffer = [];
-                                    socket.send(bufferedMessages);
-                                    lastSentTime = Date.now();
-                                    console.log("Sent ->", bufferedMessages);
-                                } catch (error) {
-                                    console.error("WebSocket send error:", error);
+                    return breadcrumb;
+                }
+
+                getChildren(parentId) {
+                    return Array.from(this.objects.values())
+                        .filter((obj) => obj.parent === parentId)
+                        .sort((a, b) => a.id.localeCompare(b.id));
+                }
+
+                getSiblings(obj) {
+                    if (!obj) return [];
+                    return Array.from(this.objects.values())
+                        .filter((o) => o.parent === obj.parent)
+                        .sort((a, b) => a.id.localeCompare(b.id));
+                }
+
+                handleKeyDown(e) {
+                    const siblings = this.currentObject.parent
+                        ? this.getChildren(this.currentObject.parent)
+                        : [];
+                    const currentIndex = this.currentObject
+                        ? siblings.findIndex(
+                              (sibling) => sibling.id === this.currentObject.id
+                          )
+                        : -1;
+
+                    switch (e.key.toLowerCase()) {
+                        case "j":
+                        case "arrowdown":
+                            if (siblings.length > 0) {
+                                const nextIndex =
+                                    currentIndex < siblings.length - 1
+                                        ? currentIndex + 1
+                                        : currentIndex;
+                                this.currentObject = siblings[nextIndex];
+                            }
+                            break;
+                        case "k":
+                        case "arrowup":
+                            if (siblings.length > 0) {
+                                const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+                                this.currentObject = siblings[prevIndex];
+                            }
+                            break;
+                        case "l":
+                        case "arrowright":
+                            if (this.currentObject) {
+                                const children = this.getChildren(this.currentObject.id);
+                                if (children.length > 0) {
+                                    this.currentObject = children[0];
                                 }
                             }
-                        }
-
-                        self.onmessage = function(event) {
-                            if (event.data.type === "connect") {
-                                wsUrl = event.data.url;
-                                clientSecret = event.data.clientSecret;
-                                connect();
-                            } else {
-                                sendMessage(event.data);
+                            break;
+                        case "h":
+                        case "arrowleft":
+                            const parentObject = this.objects.get(
+                                this.currentObject.parent
+                            );
+                            console.log(parentObject);
+                            if (parentObject) {
+                                this.currentObject = parentObject;
                             }
-                        };
+                            break;
+                        default:
+                            return;
+                    }
 
-                    `,
-                ])
-            )
-        );
+                    this.updateView();
+                    e.preventDefault();
+                }
 
-        worker.onmessage = (event) => {
-            const data = event.data;
-            console.log("Received <-", data);
-            if (data.type === "init") {
-                if (data.clientSecret) localStorage.setItem("clientSecret", data.clientSecret);
-            } else if (data.type === "message") {
-                displayMessage(data.content, "received", data.channel);
+                renderColumn(container, items, selectedId, isCurrentColumn = false) {
+                    const headerEl = container.querySelector(".column-header");
+                    const contentEl = container.querySelector(".column-content");
+
+                    // Update header
+                    if (container.id === "parentColumn") {
+                        headerEl.innerHTML = this.createBreadcrumb(
+                            this.currentObject.parent
+                        );
+
+                        // Add click handlers for breadcrumb links
+                        headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
+                            link.addEventListener("click", () => {
+                                const targetId = link.dataset.id;
+                                const targetObj = this.objects.get(targetId);
+                                if (targetObj) {
+                                    this.currentObject = targetObj;
+                                    this.updateView();
+                                }
+                            });
+                        });
+                    }
+
+                    // Update content
+                    contentEl.innerHTML = "";
+                    items.forEach((item) => {
+                        const itemEl = document.createElement("div");
+                        itemEl.className = `object-item${item.id === selectedId ? " selected" : ""}`;
+                        itemEl.textContent = this.formatObjectName(item);
+
+                        itemEl.addEventListener("click", () => {
+                            this.currentObject = item;
+                            this.updateView();
+                        });
+
+                        contentEl.appendChild(itemEl);
+                    });
+                }
+
+                updateView() {
+                    // Update parent column
+                    this.renderColumn(
+                        this.parentColumn,
+                        this.getChildren(this.currentObject?.parent),
+                        this.currentObject?.id
+                    );
+
+                    // Update current column
+                    this.renderColumn(
+                        this.currentColumn,
+                        this.getChildren(this.currentObject?.id),
+                        null
+                    );
+                }
+
+                toggle() {
+                    this.explorerElement.classList.toggle("hidden");
+                }
             }
+
+            // Initialize the explorer
+            const objectExplorer = new ObjectExplorer();
+
+            const worker = new Worker(
+                URL.createObjectURL(
+                    new Blob([
+                        `
+    let wsUrl = "ws://localhost:8080";
+    let clientSecret;
+    let socket;
+    let sendBuffer = [];
+    let reconnectAttempts = 0;
+    let keepAliveTimeout = 30000;
+    let lastSentTime = 0;
+
+    async function connect() {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            reconnectAttempts = 0;
+            sendMessage({ type: "init", clientSecret });
         };
 
-        worker.postMessage({
-            type: "connect",
-            url: "ws://localhost:8080",
-            clientSecret: localStorage.getItem("clientSecret"),
-        });
-    </script>
-</body>
+        socket.onmessage = ({ data }) => {
+            data.split("\\n").forEach(msg => {
+                try {
+                    const parsed = JSON.parse(msg);
+                    if (parsed.type === "init") {
+                        if (parsed.clientSecret) clientSecret = parsed.clientSecret;
+                        if (parsed.keepAliveTimeout) keepAliveTimeout = parsed.keepAliveTimeout;
+                    }
+                    postMessage(parsed);
+                } catch (error) {
+                    console.error("Failed to parse message:", msg);
+                }
+            });
+        };
 
+        socket.onclose = () => {
+            const delay = Math.min(1000 * 2 ** reconnectAttempts++, 60000);
+            postMessage({ type: "message", content: "Server offline. Reconnecting in " + (delay / 1000) + "s..." });
+            setTimeout(connect, delay);
+        };
+    }
+
+    function sendMessage(message) {
+        sendBuffer.push(JSON.stringify(message));
+    }
+
+    setInterval(() => {
+        if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout * 0.8) {
+            sendBuffer.push(JSON.stringify({ type: "ping" }));
+        }
+        if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
+            socket.send(sendBuffer.join("\\n"));
+            sendBuffer = [];
+            lastSentTime = Date.now();
+        }
+    }, 2000);
+
+    self.onmessage = ({ data }) => {
+        if (data.type === "connect") {
+            wsUrl = data.url;
+            clientSecret = data.clientSecret;
+            connect();
+        } else {
+            sendMessage(data);
+        }
+    };
+`,
+                    ])
+                )
+            );
+
+            worker.onmessage = ({ data }) => {
+                console.log("Received <-", data);
+                if (data.type === "init") {
+                    if (data.clientSecret)
+                        localStorage.setItem("clientSecret", data.clientSecret);
+                    displayMessage("Connected.", "system", "global");
+                } else if (data.type === "message") {
+                    displayMessage(data.content, "received", data.channel);
+                } else if (data.o) {
+                    objectExplorer.processObject(data);
+                }
+            };
+
+            displayMessage("Connecting to server...", "system", "global");
+
+            worker.postMessage({
+                type: "connect",
+                url: "ws://localhost:8080",
+                clientSecret: localStorage.getItem("clientSecret"),
+            });
+        </script>
+    </body>
 </html>
