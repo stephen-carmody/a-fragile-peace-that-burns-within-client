@@ -284,6 +284,9 @@
                     this.parentColumn = document.getElementById("parentColumn");
                     this.currentColumn = document.getElementById("currentColumn");
 
+                    // Cache of objects with unresolved parents for adding to parent.contents
+                    this.unresolvedParent = [];
+
                     // Bind methods
                     this.handleKeyDown = this.handleKeyDown.bind(this);
                     this.processObject = this.processObject.bind(this);
@@ -303,10 +306,27 @@
                         type,
                         id,
                         parent,
+                        contents: [],
                         ...message.p,
                     };
 
                     this.objects.set(id, newObject);
+
+                    // Add objects to their parents contents
+                    // child may arrive before parent, so objects are cached as unresolved
+                    // parents for future processObject calls
+                    if (parent) this.unresolvedParent.push(newObject);
+
+                    for (const object of this.unresolvedParent) {
+                        if (this.objects.has(object.parent)) {
+                            this.objects.get(object.parent).contents.push(object.id);
+                            this.unresolvedParent.splice(
+                                this.unresolvedParent.indexOf(object),
+                                1
+                            );
+                            console.log(this.objects.get(object.parent));
+                        }
+                    }
 
                     // Set initial current object if none is selected
                     if (!this.currentObject) {
@@ -363,26 +383,13 @@
                     return breadcrumb;
                 }
 
-                getChildren(parentId) {
-                    return Array.from(this.objects.values())
-                        .filter((obj) => obj.parent === parentId)
-                        .sort((a, b) => a.id.localeCompare(b.id));
-                }
-
-                getSiblings(obj) {
-                    if (!obj) return [];
-                    return Array.from(this.objects.values())
-                        .filter((o) => o.parent === obj.parent)
-                        .sort((a, b) => a.id.localeCompare(b.id));
-                }
-
                 handleKeyDown(e) {
-                    const siblings = this.currentObject.parent
-                        ? this.getChildren(this.currentObject.parent)
+                    const siblings = this.currentObject?.parent
+                        ? this.objects.get(this.currentObject.parent)?.contents
                         : [];
                     const currentIndex = this.currentObject
                         ? siblings.findIndex(
-                              (sibling) => sibling.id === this.currentObject.id
+                              (siblingId) => siblingId === this.currentObject.id
                           )
                         : -1;
 
@@ -394,33 +401,36 @@
                                     currentIndex < siblings.length - 1
                                         ? currentIndex + 1
                                         : currentIndex;
-                                this.currentObject = siblings[nextIndex];
+                                this.currentObject = this.objects.get(
+                                    siblings[nextIndex]
+                                );
                             }
                             break;
                         case "k":
                         case "arrowup":
                             if (siblings.length > 0) {
                                 const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
-                                this.currentObject = siblings[prevIndex];
+                                this.currentObject = this.objects.get(
+                                    siblings[prevIndex]
+                                );
                             }
                             break;
                         case "l":
                         case "arrowright":
                             if (this.currentObject) {
-                                const children = this.getChildren(this.currentObject.id);
-                                if (children.length > 0) {
-                                    this.currentObject = children[0];
+                                if (this.currentObject.contents.length > 0) {
+                                    this.currentObject = this.objects.get(
+                                        this.currentObject.contents[0]
+                                    );
                                 }
                             }
                             break;
                         case "h":
                         case "arrowleft":
-                            const parentObject = this.objects.get(
-                                this.currentObject.parent
-                            );
-                            console.log(parentObject);
-                            if (parentObject) {
-                                this.currentObject = parentObject;
+                            if (this.currentObject.parent) {
+                                this.currentObject = this.objects.get(
+                                    this.currentObject.parent
+                                );
                             }
                             break;
                         default:
@@ -431,7 +441,10 @@
                     e.preventDefault();
                 }
 
-                renderColumn(container, items, selectedId, isCurrentColumn = false) {
+                renderColumn(container, itemIds, selectedId, isCurrentColumn = false) {
+                    console.log(
+                        `renderColumn(${container}, ${itemIds}, ${selectedId}, ${isCurrentColumn})`
+                    );
                     const headerEl = container.querySelector(".column-header");
                     const contentEl = container.querySelector(".column-content");
 
@@ -456,9 +469,10 @@
 
                     // Update content
                     contentEl.innerHTML = "";
-                    items.forEach((item) => {
+                    itemIds.forEach((itemId) => {
+                        const item = this.objects.get(itemId);
                         const itemEl = document.createElement("div");
-                        itemEl.className = `object-item${item.id === selectedId ? " selected" : ""}`;
+                        itemEl.className = `object-item${itemId === selectedId ? " selected" : ""}`;
                         itemEl.textContent = this.formatObjectName(item);
 
                         itemEl.addEventListener("click", () => {
@@ -474,14 +488,14 @@
                     // Update parent column
                     this.renderColumn(
                         this.parentColumn,
-                        this.getChildren(this.currentObject?.parent),
+                        this.objects.get(this.currentObject?.parent)?.contents || [],
                         this.currentObject?.id
                     );
 
                     // Update current column
                     this.renderColumn(
                         this.currentColumn,
-                        this.getChildren(this.currentObject?.id),
+                        this.currentObject?.contents || [],
                         null
                     );
                 }
