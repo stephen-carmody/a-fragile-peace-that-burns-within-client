@@ -419,7 +419,7 @@
                 }
 
                 formatObjectName(obj) {
-                    return `${obj.type}-${obj.id}`;
+                    return `${obj.type} ${obj.name}`;
                 }
 
                 processObject(message) {
@@ -446,7 +446,6 @@
                                 this.unresolvedParent.indexOf(object),
                                 1
                             );
-                            console.log(this.objects.get(object.parent));
                         }
                     }
 
@@ -566,9 +565,6 @@
                 }
 
                 renderColumn(container, itemIds, selectedId, isCurrentColumn = false) {
-                    console.log(
-                        `renderColumn(${container}, ${itemIds}, ${selectedId}, ${isCurrentColumn})`
-                    );
                     const headerEl = container.querySelector(".column-header");
                     const contentEl = container.querySelector(".column-content");
 
