@@ -9,27 +9,37 @@
                 margin: 0;
                 display: flex;
                 height: 100vh;
-                font-family: Arial, sans-serif;
+                font-family: monospace;
+                font-size: 24px;
+                background: var(--background);
+                color: var(--text);
+            }
+
+            input,
+            select,
+            textarea,
+            button {
+                font-family: inherit;
+                font-size: inherit;
             }
 
             .sidebar {
                 width: 60px;
-                background: #222;
-                color: white;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 padding-top: 20px;
                 z-index: 2;
+                background: var(--sidebar-background);
+                color: var(--sidebar-text);
             }
 
             .sidebar button {
                 background: none;
                 border: none;
-                color: white;
-                font-size: 18px;
                 cursor: pointer;
                 margin: 10px 0;
+                color: var(--sidebar-text);
             }
 
             .sidebar .channelBtn {
@@ -43,6 +53,7 @@
                 flex: 1;
                 transition: width 0.3s ease-in-out;
                 overflow: hidden;
+                background: var(--chat-background);
             }
 
             .hidden {
@@ -55,7 +66,6 @@
                 flex: 1;
                 padding: 20px;
                 overflow-y: auto;
-                background: rgba(0, 0, 0, 0.5);
                 display: flex;
                 flex-direction: column;
             }
@@ -66,18 +76,25 @@
                 border-radius: 5px;
             }
 
+            .message[data-direction="sent"] {
+                color: var(--chat-text-sent);
+            }
+
+            .message[data-direction="received"] {
+                color: var(--chat-text-received);
+            }
+
             .input-area {
                 display: flex;
                 padding: 10px;
-                background: rgba(0, 0, 0, 0.5);
-                border-top: 1px solid #ddd;
             }
 
             .input-area input {
                 flex: 1;
                 padding: 10px;
-                border: 1px solid #ddd;
+                border: var(--chat-input-border);
                 border-radius: 4px;
+                width: 1em;
             }
 
             div#keybindPopup {
@@ -85,21 +102,42 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                background: white;
                 padding: 20px;
-                border: 1px solid #ccc;
+                background: var(--popup-background);
+                border: var(--border);
                 border-radius: 5px;
                 box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
                 display: none;
                 z-index: 10;
             }
+            #keybindPopup table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+
+            #keybindPopup th,
+            #keybindPopup td {
+                padding: 8px;
+                text-align: left;
+                border-bottom: 1px solid var(--border);
+            }
+
+            #keybindPopup th {
+                background-color: var(--popup-background);
+                color: var(--text);
+            }
+
+            #keybindPopup td {
+                background-color: var(--popup-background);
+                color: var(--text);
+            }
 
             .object-explorer {
                 display: flex;
                 width: 100%;
-                border-right: 1px solid #ddd;
+                border-right: var(--border);
                 transition: width 0.3s ease-in-out;
-                background: white;
             }
 
             .object-explorer.hidden {
@@ -108,7 +146,7 @@
             }
 
             .explorer-column {
-                border-right: 1px solid #ddd;
+                border-right: var(--border);
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
@@ -128,8 +166,9 @@
 
             .column-header {
                 padding: 8px;
-                background: #f4f4f4;
-                border-bottom: 1px solid #ddd;
+                min-height: 1em;
+                background: var(--breadcrumb-background);
+                border-bottom: var(--border);
             }
 
             .column-content {
@@ -140,19 +179,19 @@
             .object-item {
                 padding: 8px;
                 cursor: pointer;
-                border-bottom: 1px solid #eee;
+                border-bottom: var(--border);
             }
 
             .object-item:hover {
-                background: #f8f8f8;
+                background: var(--object-hover);
             }
 
             .object-item.selected {
-                background: #e3f2fd;
+                background: var(--object-selected);
             }
 
             .breadcrumb-link {
-                color: #0066cc;
+                color: var(--breadcrumb);
                 text-decoration: none;
                 cursor: pointer;
             }
@@ -160,10 +199,61 @@
             .breadcrumb-link:hover {
                 text-decoration: underline;
             }
+
+            /* Muted Pascal Theme */
+            .colourtheme-muted-pascal {
+                --background: #2b2d37;
+                --text: #d3c6aa;
+                --sidebar-background: #32343f;
+                --sidebar-text: #d3c6aa;
+                --chat-background: #3b3d4b;
+                --chat-text-sent: #a7c080;
+                --chat-text-received: #d3c6aa;
+                --border: 1px solid #4b4d59;
+                --popup-background: #32343f;
+                --breadcrumb-background: #3f414f;
+                --breadcrumb: #7fbbb3;
+                --object-selected: #454857;
+                --object-hover: #505262;
+            }
+
+            /* Tokyonight Theme */
+            .colourtheme-tokyonight {
+                --background: #1a1b26;
+                --text: #c0caf5;
+                --sidebar-background: #16161e;
+                --sidebar-text: #c0caf5;
+                --chat-background: #1f2335;
+                --chat-text-sent: #7dcfff;
+                --chat-text-received: #c0caf5;
+                --border: 1px solid #2a2e3e;
+                --popup-background: #1f2335;
+                --breadcrumb-background: #2a2e3e;
+                --breadcrumb: #bb9af7;
+                --object-selected: #292e42;
+                --object-hover: #3b4261;
+            }
+
+            /* Gruvbox Theme */
+            .colourtheme-gruvbox {
+                --background: #282828;
+                --text: #ebdbb2;
+                --sidebar-background: #1d2021;
+                --sidebar-text: #ebdbb2;
+                --chat-background: #32302f;
+                --chat-text-sent: #fabd2f;
+                --chat-text-received: #ebdbb2;
+                --border: 1px solid #3c3836;
+                --popup-background: #32302f;
+                --breadcrumb-background: #3c3836;
+                --breadcrumb: #fb4934;
+                --object-selected: #504945;
+                --object-hover: #665c54;
+            }
         </style>
     </head>
 
-    <body>
+    <body class="colourtheme-muted-pascal">
         <div class="sidebar">
             <button id="toggleChatBtn">❮❮</button>
             <button class="channelBtn" data-channel="global">🗫</button>
@@ -173,11 +263,11 @@
             <div class="chat-container" id="chatContainer">
                 <div class="messages" id="messages"></div>
                 <div class="input-area">
-                    <input type="text" id="chatInput" placeholder="Type a message..." />
+                    <input type="text" id="chatInput" placeholder="" />
                 </div>
             </div>
             <div class="explorer-column" id="parentColumn">
-                <div class="column-header"></div>
+                <div class="column-header">&nbsp;</div>
                 <div class="column-content"></div>
             </div>
             <div class="explorer-column" id="currentColumn">
@@ -187,10 +277,38 @@
         </div>
         <div id="keybindPopup">
             <h3>Keyboard Shortcuts</h3>
-            <ul>
-                <li><strong>Ctrl+/</strong> - Show keyboard shortcuts</li>
-                <li><strong>Ctrl+Enter</strong> - Toggle chat</li>
-            </ul>
+            <table>
+                <tr>
+                    <th>Key</th>
+                    <th>Description</th>
+                    <th>Key</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><strong>Ctrl+/</strong></td>
+                    <td>Show keyboard shortcuts</td>
+                    <td><strong>h</strong> or <strong>Left</strong></td>
+                    <td>Navigate out of current object</td>
+                </tr>
+                <tr>
+                    <td><strong>Ctrl+Enter</strong></td>
+                    <td>Toggle chat</td>
+                    <td><strong>l</strong> or <strong>Right</strong></td>
+                    <td>Navigate into selected object</td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td><strong>k</strong> or <strong>Up</strong></td>
+                    <td>Select previous object</td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td><strong>j</strong> or <strong>Down</strong></td>
+                    <td>Select next object</td>
+                </tr>
+            </table>
         </div>
         <script type="module">
             const keybindPopup = document.getElementById("keybindPopup");
@@ -203,10 +321,14 @@
             setChannel(currentChannel);
 
             // Event Listeners
-
-            document.addEventListener("keydown", ({ ctrlKey, key }) => {
-                if (ctrlKey && key === "/") toggleVisibility(keybindPopup);
-                if (ctrlKey && key === "Enter") toggleChat();
+            document.addEventListener("keydown", (e) => {
+                if (e.ctrlKey && e.key === "I") {
+                    toggleVisibility(keybindPopup);
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return false;
+                }
+                if (e.ctrlKey && e.key === "Enter") toggleChat();
             });
 
             chatInput.addEventListener("keydown", ({ key, ctrlKey }) => {
@@ -249,8 +371,7 @@
                 newMessage.textContent = text;
                 newMessage.classList.add("message");
                 newMessage.dataset.channel = channel;
-                //newMessage.style.background = type === "sent" ? "#007bff" : "#ddd";
-                newMessage.style.color = type === "sent" ? "white" : "black";
+                newMessage.dataset.direction = type === "sent" ? "sent" : "received";
                 newMessage.style.display = channel === currentChannel ? "block" : "none";
                 messagesContainer.appendChild(newMessage);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -352,7 +473,7 @@
                 }
 
                 createBreadcrumb(parentId) {
-                    if (!parentId) return "";
+                    if (!parentId) return "&nbsp";
 
                     const parentObj = this.objects.get(parentId);
 
@@ -488,7 +609,9 @@
                     // Update parent column
                     this.renderColumn(
                         this.parentColumn,
-                        this.objects.get(this.currentObject?.parent)?.contents || [],
+                        this.objects.get(this.currentObject?.parent)?.contents || [
+                            this.currentObject?.id,
+                        ],
                         this.currentObject?.id
                     );
 
