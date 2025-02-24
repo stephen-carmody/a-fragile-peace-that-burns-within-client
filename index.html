@@ -363,7 +363,7 @@
                 const message = chatInput.value.trim();
                 if (!message) return;
                 displayMessage(message, "sent", currentChannel);
-                worker.postMessage({ type: "message", content: message });
+                worker.postMessage({ type: "chat", content: message });
                 chatInput.value = "";
             }
 
@@ -399,15 +399,13 @@
             class ObjectExplorer {
                 constructor() {
                     this.objects = new Map();
+                    this.id_children = new Map();
                     this.currentObject = null;
 
                     // Cache DOM elements
                     this.explorerElement = document.getElementById("objectExplorer");
                     this.parentColumn = document.getElementById("parentColumn");
                     this.currentColumn = document.getElementById("currentColumn");
-
-                    // Cache of objects with unresolved parents for adding to parent.contents
-                    this.unresolvedParent = [];
 
                     // Bind methods
                     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -418,50 +416,66 @@
                     document.addEventListener("keydown", this.handleKeyDown);
                 }
 
+                setCurrentObject(obj) {
+                    this.currentObject = obj;
+                    this.updateView();
+                }
+
+                getParent(obj) {
+                    if (this.objects.has(obj.parent_id))
+                        return this.objects.get(obj.parent_id);
+                }
+
                 formatObjectName(obj) {
                     return `${obj.type} ${obj.name}`;
                 }
 
-                processObject(message) {
-                    const [type, id, parent] = message.o.split("-");
-                    const newObject = {
-                        type,
-                        id,
-                        parent,
-                        contents: [],
-                        ...message.p,
-                    };
+                processObject(snapshot) {
+                    const parts = snapshot.o.split(";");
+                    let obj = this.objects.get(parts[1]);
 
-                    this.objects.set(id, newObject);
-
-                    // Add objects to their parents contents
-                    // child may arrive before parent, so objects are cached as unresolved
-                    // parents for future processObject calls
-                    if (parent) this.unresolvedParent.push(newObject);
-
-                    for (const object of this.unresolvedParent) {
-                        if (this.objects.has(object.parent)) {
-                            this.objects.get(object.parent).contents.push(object.id);
-                            this.unresolvedParent.splice(
-                                this.unresolvedParent.indexOf(object),
-                                1
-                            );
+                    if (!obj) {
+                        obj = { id: parts[1] };
+                        this.objects.set(obj.id, obj);
+                        if (state.player_id && state.player_id === obj.id) {
+                            objectExplorer.setCurrentObject(obj);
                         }
                     }
 
-                    // Set initial current object if none is selected
-                    if (!this.currentObject) {
-                        this.currentObject = newObject;
+                    obj.type = parts[2];
+                    obj.name = parts[3];
+                    obj.quality = parseFloat(parts[4]);
+                    obj.damage = parseFloat(parts[5]);
+                    obj.weight = parseFloat(parts[6]);
+
+                    for (let i = 7; i < parts.length; i++) {
+                        const [key, value] = parts[i].split("=");
+                        obj[key] = isNaN(value) ? value : parseFloat(value);
+                    }
+
+                    if (parts[0] !== obj.parent_id) {
+                        if (this.id_children.has(obj.parent_id)) {
+                            const old_siblings = this.id_children.get(obj.parent_id);
+                            const index = old_siblings.indexOf(obj.id);
+                            if (index > -1) old_siblings.splice(index, 1);
+                        }
+                        obj.parent_id = parts[0];
+                        this.id_children.set(obj.parent_id, [
+                            ...(this.id_children.get(obj.parent_id) || []),
+                            obj.id,
+                        ]);
                     }
 
                     this.updateView();
+
+                    return obj;
                 }
 
                 getParentChain(obj) {
                     const chain = [];
                     let current = this.currentObject;
                     while (current && chain.length < 2) {
-                        const parent = this.objects.get(current.parent);
+                        const parent = this.objects.get(current.parent_id);
                         if (parent) {
                             chain.unshift(parent);
                             current = parent;
@@ -472,19 +486,21 @@
                     return chain;
                 }
 
-                createBreadcrumb(parentId) {
-                    if (!parentId) return "&nbsp";
+                createBreadcrumb(parent_id) {
+                    if (!parent_id) return "&nbsp";
 
-                    const parentObj = this.objects.get(parentId);
+                    const parent = this.objects.get(parent_id);
 
-                    const chain = this.getParentChain(parentObj);
+                    if (!parent) return "&nbsp";
+
+                    const chain = this.getParentChain(parent);
                     let breadcrumb = "";
 
                     if (chain.length > 0) {
-                        if (chain[0].parent) {
+                        if (chain[0].parent_id) {
                             breadcrumb +=
                                 '<span class="breadcrumb-link" data-id="' +
-                                chain[0].parent +
+                                chain[0].parent_id +
                                 '">...</span> / ';
                         }
 
@@ -507,9 +523,8 @@
                 handleKeyDown(e) {
                     if (event.target instanceof HTMLInputElement) return false;
 
-                    const siblings = this.currentObject?.parent
-                        ? this.objects.get(this.currentObject.parent)?.contents
-                        : [];
+                    const siblings =
+                        this.id_children.get(this.currentObject?.parent_id) || [];
                     const currentIndex = this.currentObject
                         ? siblings.findIndex(
                               (siblingId) => siblingId === this.currentObject.id
@@ -524,37 +539,33 @@
                                     currentIndex < siblings.length - 1
                                         ? currentIndex + 1
                                         : currentIndex;
-                                this.currentObject = this.objects.get(
-                                    siblings[nextIndex]
-                                );
+                                const nextSibling = this.objects.get(siblings[nextIndex]);
+                                if (nextSibling) this.currentObject = nextSibling;
                             }
                             break;
                         case "k":
                         case "arrowup":
                             if (siblings.length > 0) {
                                 const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
-                                this.currentObject = this.objects.get(
-                                    siblings[prevIndex]
-                                );
+                                const prevSibling = this.objects.get(siblings[prevIndex]);
+                                if (prevSibling) this.currentObject = prevSibling;
                             }
                             break;
                         case "l":
                         case "arrowright":
                             if (this.currentObject) {
-                                if (this.currentObject.contents.length > 0) {
-                                    this.currentObject = this.objects.get(
-                                        this.currentObject.contents[0]
-                                    );
+                                const children =
+                                    this.id_children.get(this.currentObject.id) || [];
+                                if (children.length > 0) {
+                                    const firstChild = this.objects.get(children[0]);
+                                    if (firstChild) this.currentObject = firstChild;
                                 }
                             }
                             break;
                         case "h":
                         case "arrowleft":
-                            if (this.currentObject.parent) {
-                                this.currentObject = this.objects.get(
-                                    this.currentObject.parent
-                                );
-                            }
+                            const parent = this.getParent(this.currentObject);
+                            if (parent) this.currentObject = parent;
                             break;
                         default:
                             return;
@@ -570,9 +581,9 @@
 
                     // Update header
                     if (container.id === "parentColumn") {
-                        headerEl.innerHTML = this.createBreadcrumb(
-                            this.currentObject.parent
-                        );
+                        headerEl.innerHTML = this.currentObject
+                            ? this.createBreadcrumb(this.currentObject.parent_id)
+                            : "";
 
                         // Add click handlers for breadcrumb links
                         headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
@@ -608,16 +619,18 @@
                     // Update parent column
                     this.renderColumn(
                         this.parentColumn,
-                        this.objects.get(this.currentObject?.parent)?.contents || [
-                            this.currentObject?.id,
-                        ],
+                        this.currentObject
+                            ? this.id_children.get(this.currentObject.parent_id) || [
+                                  this.currentObject.id,
+                              ]
+                            : [],
                         this.currentObject?.id
                     );
 
                     // Update current column
                     this.renderColumn(
                         this.currentColumn,
-                        this.currentObject?.contents || [],
+                        this.id_children.get(this.currentObject?.id) || [],
                         null
                     );
                 }
@@ -627,6 +640,10 @@
                 }
             }
 
+            const state = {
+                player_id: null,
+            };
+
             // Initialize the explorer
             const objectExplorer = new ObjectExplorer();
 
@@ -634,85 +651,101 @@
                 URL.createObjectURL(
                     new Blob([
                         `
-    let wsUrl = "ws://localhost:8080";
-    let clientSecret;
-    let socket;
-    let sendBuffer = [];
-    let reconnectAttempts = 0;
-    let keepAliveTimeout = 30000;
-    let lastSentTime = 0;
+                    let wsUrl = "ws://localhost:8080";
+                    let clientSecret;
+                    let socket;
+                    let sendBuffer = [];
+                    let reconnectAttempts = 0;
+                    let keepAliveTimeout = 30000;
+                    let lastSentTime = 0;
 
-    async function connect() {
-        socket = new WebSocket(wsUrl);
+                    async function connect() {
+                        socket = new WebSocket(wsUrl);
 
-        socket.onopen = () => {
-            reconnectAttempts = 0;
-            sendMessage({ type: "init", clientSecret });
-        };
+                        socket.onopen = () => {
+                            reconnectAttempts = 0;
+                            sendMessage({ type: "init", clientSecret });
+                        };
 
-        socket.onmessage = ({ data }) => {
-            data.split("\\n").forEach(msg => {
-                try {
-                    const parsed = JSON.parse(msg);
-                    if (parsed.type === "init") {
-                        if (parsed.clientSecret) clientSecret = parsed.clientSecret;
-                        if (parsed.keepAliveTimeout) keepAliveTimeout = parsed.keepAliveTimeout;
+                        socket.onmessage = ({ data }) => {
+                            data.split("\\n").forEach(msg => {
+                                try {
+                                    const parsed = JSON.parse(msg);
+                                    if (parsed.type === "init") {
+                                        if (parsed.clientSecret) clientSecret = parsed.clientSecret;
+                                        if (parsed.keepAliveTimeout) keepAliveTimeout = parsed.keepAliveTimeout;
+                                    }
+                                    postMessage(parsed);
+                                } catch (error) {
+                                    console.error("Failed to parse message:", msg);
+                                }
+                            });
+                        };
+
+                        socket.onclose = () => {
+                            const delay = Math.min(1000 * 2 ** reconnectAttempts++, 60000);
+                            postMessage({ type: "chat", content: "Server offline. Reconnecting in " + (delay / 1000) + "s..." });
+                            setTimeout(connect, delay);
+                        };
                     }
-                    postMessage(parsed);
-                } catch (error) {
-                    console.error("Failed to parse message:", msg);
-                }
-            });
-        };
 
-        socket.onclose = () => {
-            const delay = Math.min(1000 * 2 ** reconnectAttempts++, 60000);
-            postMessage({ type: "message", content: "Server offline. Reconnecting in " + (delay / 1000) + "s..." });
-            setTimeout(connect, delay);
-        };
-    }
+                    function sendMessage(message) {
+                        sendBuffer.push(JSON.stringify(message));
+                    }
 
-    function sendMessage(message) {
-        sendBuffer.push(JSON.stringify(message));
-    }
+                    setInterval(() => {
+                        if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout - 5000) {
+                            sendBuffer.push(JSON.stringify({ type: "ping" }));
+                        }
+                        if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
+                            socket.send(sendBuffer.join("\\n"));
+                            sendBuffer = [];
+                            lastSentTime = Date.now();
+                        }
+                    }, 2000);
 
-    setInterval(() => {
-        if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout * 0.8) {
-            sendBuffer.push(JSON.stringify({ type: "ping" }));
-        }
-        if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
-            socket.send(sendBuffer.join("\\n"));
-            sendBuffer = [];
-            lastSentTime = Date.now();
-        }
-    }, 2000);
-
-    self.onmessage = ({ data }) => {
-        if (data.type === "connect") {
-            wsUrl = data.url;
-            clientSecret = data.clientSecret;
-            connect();
-        } else {
-            sendMessage(data);
-        }
-    };
-`,
+                    self.onmessage = ({ data }) => {
+                        if (data.type === "connect") {
+                            wsUrl = data.url;
+                            clientSecret = data.clientSecret;
+                            connect();
+                        } else {
+                            sendMessage(data);
+                        }
+                    };
+                `,
                     ])
                 )
             );
 
             worker.onmessage = ({ data }) => {
                 console.log("Received <-", data);
-                if (data.type === "init") {
-                    if (data.clientSecret)
-                        localStorage.setItem("clientSecret", data.clientSecret);
-                    displayMessage("Connected.", "system", "global");
-                } else if (data.type === "message") {
-                    displayMessage(data.content, "received", data.channel);
-                } else if (data.o) {
-                    objectExplorer.processObject(data);
-                }
+                if (data.type)
+                    return worker.dispatchEvent(
+                        new CustomEvent(data.type, { detail: data })
+                    );
+                objectExplorer.processObject(data);
             };
+
+            worker.addEventListener("init", (e) => {
+                const { clientId, clientSecret, keepAliveTimeout, isRejoin, player_id } =
+                    e.detail;
+                if (clientSecret) localStorage.setItem("clientSecret", clientSecret);
+
+                if (player_id) {
+                    state.player_id = player_id;
+                    const player = objectExplorer.objects.get(state.player_id);
+                    if (player) {
+                        const parent = objectExplorer.getParent(player);
+                        if (parent) objectExplorer.setCurrentObject(parent);
+                    }
+                }
+            });
+
+            worker.addEventListener("chat", (e) => {
+                const { content, channel } = e.detail;
+                displayMessage(content, "received", channel);
+            });
 
             displayMessage("Connecting to server...", "system", "global");
 
