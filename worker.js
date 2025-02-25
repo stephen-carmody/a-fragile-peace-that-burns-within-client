@@ -49,7 +49,7 @@ setInterval(() => {
         sendBuffer.push(JSON.stringify({ type: "ping" }));
     }
     if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
-        socket.send(sendBuffer.join("\\n"));
+        socket.send(sendBuffer.join("\n"));
         sendBuffer = [];
         lastSentTime = Date.now();
     }
