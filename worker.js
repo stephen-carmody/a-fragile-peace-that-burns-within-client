@@ -33,8 +33,8 @@ async function connect() {
     socket.onclose = () => {
         const delay = Math.min(1000 * 2 ** reconnectAttempts++, 60000);
         postMessage({
-            type: "chat",
-            content: "Server offline. Reconnecting in " + delay / 1000 + "s...",
+            type: "offline",
+            message: "Server offline. Reconnecting in " + delay / 1000 + "s...",
         });
         setTimeout(connect, delay);
     };

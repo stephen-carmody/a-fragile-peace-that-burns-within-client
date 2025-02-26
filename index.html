@@ -6,7 +6,6 @@
         <title>Chat Client</title>
         <link rel="stylesheet" href="./styles.css"></link>
     </head>
-
     <body class="colourtheme-muted-pascal">
         <div class="sidebar">
             <button id="toggleChatBtn">❮❮</button>
@@ -20,12 +19,12 @@
                     <input type="text" id="chatInput" placeholder="" />
                 </div>
             </div>
-            <div class="explorer-column" id="parentColumn">
-                <div class="column-header">&nbsp;</div>
+            <div class="explorer-column" id="siblingColumn">
+                <div class="column-header"> </div>
                 <div class="column-content"></div>
             </div>
-            <div class="explorer-column" id="currentColumn">
-                <div class="column-header">&nbsp;</div>
+            <div class="explorer-column" id="focusColumn">
+                <div class="column-header"> </div>
                 <div class="column-content"></div>
             </div>
         </div>
@@ -51,14 +50,14 @@
                     <td>Navigate into selected object</td>
                 </tr>
                 <tr>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
+                    <td> </td>
+                    <td> </td>
                     <td><strong>k</strong> or <strong>Up</strong></td>
                     <td>Select previous object</td>
                 </tr>
                 <tr>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
+                    <td> </td>
+                    <td> </td>
                     <td><strong>j</strong> or <strong>Down</strong></td>
                     <td>Select next object</td>
                 </tr>

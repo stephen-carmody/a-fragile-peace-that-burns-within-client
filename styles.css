@@ -197,11 +197,11 @@ div#keybindPopup {
     overflow: hidden;
 }
 
-#parentColumn {
+#siblingColumn {
     flex: 1;
 }
 
-#currentColumn {
+#focusColumn {
     flex: 2;
 }
 
@@ -225,6 +225,21 @@ div#keybindPopup {
     padding: 8px;
     cursor: pointer;
     border-bottom: var(--border);
+    position: relative;
+}
+
+.damage-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: rgba(128, 128, 128, 0.5);
+    z-index: 0;
+}
+
+.object-item span {
+    position: relative;
+    z-index: 1;
 }
 
 .object-item:hover {
