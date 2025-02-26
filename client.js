@@ -10,7 +10,6 @@ const state = {
     id_object: new Map(),
     id_children: new Map(),
     obj_current: null,
-    obj_previous: null,
     el_explorer: document.getElementById("objectExplorer"),
     el_sibling_column: document.getElementById("siblingColumn"),
     el_focus_column: document.getElementById("focusColumn"),
@@ -154,6 +153,30 @@ function renderColumn(container, itemIds, selectedId, isFocusColumn) {
 
         const textEl = document.createElement("span");
         textEl.textContent = formatObjectName(item);
+
+        const quality = item.quality || 0;
+        if (quality < 0.1) {
+            textEl.style.color = "black";
+        } else if (quality < 0.2) {
+            textEl.style.color = "gray";
+        } else if (quality < 0.3) {
+            textEl.style.color = "white";
+        } else if (quality < 0.4) {
+            textEl.style.color = "green";
+        } else if (quality < 0.5) {
+            textEl.style.color = "blue";
+        } else if (quality < 0.6) {
+            textEl.style.color = "orange";
+        } else if (quality < 0.7) {
+            textEl.style.color = "yellow";
+        } else if (quality < 0.8) {
+            textEl.style.color = "red";
+        } else if (quality < 0.9) {
+            textEl.style.color = "redviolet";
+        } else {
+            textEl.style.color = "purple";
+        }
+
         itemEl.appendChild(textEl);
 
         itemEl.addEventListener("click", function () {
@@ -186,31 +209,10 @@ function setCurrentObject(obj) {
         return;
     }
 
-    console.log(
-        `Setting obj_current: ${obj?.id}, obj_previous: ${state.obj_current?.id}`
-    );
-    state.obj_previous = state.obj_current;
+    console.log(`Setting obj_current: ${obj?.id}`);
     state.obj_current = obj;
-
-    if (state.obj_previous) {
-        const children = state.id_children.get(state.obj_current?.id) || [];
-        const siblings = state.id_children.get(state.obj_current?.parent_id) || [];
-
-        if (children.includes(state.obj_previous.id)) {
-            state.focused_column = "focus";
-            state.id_focus_selected = state.obj_previous.id;
-        } else if (siblings.includes(state.obj_previous.id)) {
-            state.focused_column = "sibling";
-            state.id_focus_selected = null;
-        } else {
-            state.focused_column = "sibling";
-            state.id_focus_selected = null;
-        }
-    } else {
-        state.focused_column = "sibling";
-        state.id_focus_selected = null;
-    }
-
+    state.focused_column = "sibling";
+    state.id_focus_selected = null;
     updateView();
 }
 
@@ -352,10 +354,9 @@ function resetClientState() {
     state.id_object.clear();
     state.id_children.clear();
     state.obj_current = null;
-    state.obj_previous = null;
     state.focused_column = "sibling";
     state.id_focus_selected = null;
-    state.channel = "global"; // Reset channel to default
+    state.channel = "global";
     updateView();
 }
 
