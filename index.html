@@ -7,25 +7,39 @@
         <link rel="stylesheet" href="./styles.css"></link>
     </head>
     <body class="colourtheme-muted-pascal">
-        <div class="sidebar">
-            <button id="toggleChatBtn">❮❮</button>
-            <button class="channelBtn" data-channel="global">🗫</button>
-            <button class="channelBtn" data-channel="local">🗬</button>
-        </div>
-        <div id="objectExplorer" class="object-explorer">
-            <div class="chat-container" id="chatContainer">
-                <div class="messages" id="messages"></div>
-                <div class="input-area">
-                    <input type="text" id="chatInput" placeholder="" />
+        <div class="main-content">
+            <div class="sidebar">
+                <button id="toggleChatBtn">❮❮</button>
+                <button class="channelBtn" data-channel="global">🗫</button>
+                <button class="channelBtn" data-channel="local">🗬</button>
+            </div>
+            <div class="explorers-container">
+                <div id="objectExplorer" class="object-explorer">
+                    <div class="chat-container" id="chatContainer">
+                        <div class="messages" id="messages"></div>
+                        <div class="input-area">
+                            <input type="text" id="chatInput" placeholder="" />
+                        </div>
+                    </div>
+                    <div class="explorer-column" id="siblingColumn">
+                        <div class="column-header"> </div>
+                        <div class="column-content"></div>
+                    </div>
+                    <div class="explorer-column" id="focusColumn">
+                        <div class="column-header"> </div>
+                        <div class="column-content"></div>
+                    </div>
                 </div>
-            </div>
-            <div class="explorer-column" id="siblingColumn">
-                <div class="column-header"> </div>
-                <div class="column-content"></div>
-            </div>
-            <div class="explorer-column" id="focusColumn">
-                <div class="column-header"> </div>
-                <div class="column-content"></div>
+                <div id="playerExplorer" class="player-explorer">
+                    <div class="explorer-column" id="playerSiblingColumn">
+                        <div class="column-header"> </div>
+                        <div class="column-content"></div>
+                    </div>
+                    <div class="explorer-column" id="playerFocusColumn">
+                        <div class="column-header"> </div>
+                        <div class="column-content"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="keybindPopup">

@@ -1,4 +1,4 @@
-// ../a-fragile-peace-that-burns-within-client/client.js
+// client.js
 const keybindPopup = document.getElementById("keybindPopup");
 const chatInput = document.getElementById("chatInput");
 const messagesContainer = document.getElementById("messages");
@@ -10,12 +10,12 @@ const state = {
     id_object: new Map(),
     id_children: new Map(),
     obj_current: null,
+    obj_player_current: null,
     el_explorer: document.getElementById("objectExplorer"),
     el_sibling_column: document.getElementById("siblingColumn"),
     el_focus_column: document.getElementById("focusColumn"),
-    has_rendered_initial_view: false,
-    focused_column: "sibling",
-    id_focus_selected: null,
+    el_player_sibling_column: document.getElementById("playerSiblingColumn"),
+    el_player_focus_column: document.getElementById("playerFocusColumn"),
     player_id: null,
     focus_id: null,
     channel: "global",
@@ -23,7 +23,7 @@ const state = {
 
 setChannel(state.channel);
 
-// Utility Functions
+// Utility Functions (unchanged)
 function toggleVisibility(element) {
     element.style.display = element.style.display === "block" ? "none" : "block";
 }
@@ -38,7 +38,7 @@ function debounce(fn, delay) {
     };
 }
 
-// Chat Functions
+// Chat Functions (unchanged)
 function toggleChat() {
     chatContainer.classList.toggle("hidden");
     sidebarButton.textContent = chatContainer.classList.contains("hidden") ? "❯❯" : "❮❮";
@@ -87,120 +87,321 @@ function getParent(obj) {
 }
 
 function formatObjectName(obj) {
-    return `${obj.type} ${obj.name}`;
+    return `${obj.type} <span style="color:${getQualityColor(obj.quality)}">${obj.name}</span>`;
 }
 
-function getParentChain(obj) {
-    const chain = [obj];
+function getParentChain(obj, max = 3) {
+    const chain = [];
     let current = obj;
-    while (current && current.type !== "world" && chain.length < 3) {
-        const parent = state.id_object.get(current.parent_id);
-        if (parent) {
-            chain.unshift(parent);
-            current = parent;
-        } else break;
+    while (current && current.type !== "root" && chain.length < max) {
+        chain.unshift(current);
+        current = state.id_object.get(current.parent_id);
     }
     return chain;
 }
 
-function createBreadcrumb(parentId) {
-    if (!parentId) return " ";
-    const parent = state.id_object.get(parentId);
-    if (!parent) return " ";
-
-    const chain = getParentChain(parent);
-    if (chain.length === 0) return " ";
+function createBreadcrumb(endObject, max = 3) {
+    if (!endObject) return " ";
+    const chain = getParentChain(endObject, max);
 
     let breadcrumb = "";
-    if (chain.length > 2 && chain[0].parent_id) {
+    if (chain.length > 1 && chain[0].parent_id) {
         breadcrumb += `<span class="breadcrumb-link" data-id="${chain[0].id}">...</span> / `;
     }
-    chain.slice(-2).forEach(function (obj, i) {
-        breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${formatObjectName(obj)}</span>`;
-        if (i < 1 && chain.length > 1) breadcrumb += " / ";
+    chain.slice(-1).forEach(function (obj) {
+        breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${formatObjectName(obj)}</span> / `;
     });
     return breadcrumb;
 }
 
-function renderColumn(container, itemIds, selectedId, isFocusColumn) {
-    const headerEl = container.querySelector(".column-header");
-    const contentEl = container.querySelector(".column-content");
+function createObjectItem(obj, isSelected = false, onClickHandler) {
+    const itemEl = document.createElement("div");
+    itemEl.className = `object-item${isSelected ? " selected" : ""}`;
 
-    if (container.id === "siblingColumn") {
-        headerEl.innerHTML = state.obj_current
-            ? createBreadcrumb(state.obj_current.parent_id)
-            : "";
-        headerEl.querySelectorAll(".breadcrumb-link").forEach(function (link) {
-            link.addEventListener("click", function () {
-                setCurrentObject(state.id_object.get(link.dataset.id));
-            });
-        });
+    const damageBg = document.createElement("div");
+    damageBg.className = "damage-background";
+    damageBg.style.width = `${(obj.damage || 0) * 100}%`;
+    itemEl.appendChild(damageBg);
+
+    const textEl = document.createElement("div");
+    textEl.innerHTML = formatObjectName(obj);
+
+    itemEl.appendChild(textEl);
+    itemEl.addEventListener("click", () => onClickHandler(obj));
+
+    return itemEl;
+}
+
+function getQualityColor(quality) {
+    const colorStops = [
+        { quality: 0.0, h: 0, s: 0, l: 0 },
+        { quality: 0.1, h: 0, s: 0, l: 50 },
+        { quality: 0.2, h: 0, s: 0, l: 100 },
+        { quality: 0.3, h: 120, s: 100, l: 50 },
+        { quality: 0.4, h: 240, s: 100, l: 50 },
+        { quality: 0.5, h: 60, s: 100, l: 50 },
+        { quality: 0.7, h: 39, s: 100, l: 50 },
+        { quality: 0.8, h: 0, s: 100, l: 50 },
+        { quality: 1.0, h: 300, s: 100, l: 50 },
+    ];
+
+    for (let i = 0; i < colorStops.length - 1; i++) {
+        const current = colorStops[i];
+        const next = colorStops[i + 1];
+        if (quality >= current.quality && quality <= next.quality) {
+            const t = (quality - current.quality) / (next.quality - current.quality);
+            const h = Math.round(current.h + (next.h - current.h) * t);
+            const s = Math.round(current.s + (next.s - current.s) * t);
+            const l = Math.round(current.l + (next.l - current.l) * t);
+            return hslToHex(h, s, l);
+        }
+    }
+    return "";
+}
+
+function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+    let c = (1 - Math.abs(2 * l - 1)) * s;
+    let x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    let m = l - c / 2;
+    let r = 0,
+        g = 0,
+        b = 0;
+
+    if (h >= 0 && h < 60) {
+        r = c;
+        g = x;
+        b = 0;
+    } else if (h < 120) {
+        r = x;
+        g = c;
+        b = 0;
+    } else if (h < 180) {
+        r = 0;
+        g = c;
+        b = x;
+    } else if (h < 240) {
+        r = 0;
+        g = x;
+        b = c;
+    } else if (h < 300) {
+        r = x;
+        g = 0;
+        b = c;
+    } else if (h < 360) {
+        r = c;
+        g = 0;
+        b = x;
     }
 
-    contentEl.innerHTML = "";
-    itemIds.forEach(function (itemId) {
-        const item = state.id_object.get(itemId);
-        const itemEl = document.createElement("div");
-        const isSelected = isFocusColumn
-            ? itemId === selectedId
-            : itemId === state.obj_current?.id;
-        itemEl.className = `object-item${isSelected ? " selected" : ""}`;
+    r = Math.round((r + m) * 255)
+        .toString(16)
+        .padStart(2, "0");
+    g = Math.round((g + m) * 255)
+        .toString(16)
+        .padStart(2, "0");
+    b = Math.round((b + m) * 255)
+        .toString(16)
+        .padStart(2, "0");
+    return `#${r}${g}${b}`;
+}
 
-        const damageBg = document.createElement("div");
-        damageBg.className = "damage-background";
-        damageBg.style.width = `${(item.damage || 0) * 100}%`;
-        itemEl.appendChild(damageBg);
+// Player Explorer Functions
+function renderPlayerSiblingColumn(selectedId) {
+    const headerEl = state.el_player_sibling_column.querySelector(".column-header");
+    const contentEl = state.el_player_sibling_column.querySelector(".column-content");
 
-        const textEl = document.createElement("span");
-        textEl.textContent = formatObjectName(item);
+    const parent = state.obj_player_current ? getParent(state.obj_player_current) : null;
+    headerEl.innerHTML = parent
+        ? createBreadcrumb(parent)
+        : state.player_id
+          ? formatObjectName(state.id_object.get(state.player_id))
+          : " ";
 
-        const quality = item.quality || 0;
-        if (quality < 0.1) {
-            textEl.style.color = "black";
-        } else if (quality < 0.2) {
-            textEl.style.color = "gray";
-        } else if (quality < 0.3) {
-            textEl.style.color = "white";
-        } else if (quality < 0.4) {
-            textEl.style.color = "green";
-        } else if (quality < 0.5) {
-            textEl.style.color = "blue";
-        } else if (quality < 0.6) {
-            textEl.style.color = "orange";
-        } else if (quality < 0.7) {
-            textEl.style.color = "yellow";
-        } else if (quality < 0.8) {
-            textEl.style.color = "red";
-        } else if (quality < 0.9) {
-            textEl.style.color = "redviolet";
-        } else {
-            textEl.style.color = "purple";
-        }
-
-        itemEl.appendChild(textEl);
-
-        itemEl.addEventListener("click", function () {
-            setCurrentObject(item);
+    headerEl.querySelectorAll(".breadcrumb-link").forEach(function (link) {
+        link.addEventListener("click", function () {
+            setPlayerCurrentObject(state.id_object.get(link.dataset.id));
         });
+    });
+
+    contentEl.innerHTML = "";
+    const parent_id = state.obj_player_current
+        ? state.obj_player_current.parent_id
+        : state.player_id;
+    const siblings = parent_id
+        ? state.id_children.get(parent_id) || []
+        : state.player_id
+          ? state.id_children.get(state.player_id) || []
+          : [];
+
+    siblings.forEach(function (itemId) {
+        const item = state.id_object.get(itemId);
+        const itemEl = createObjectItem(
+            item,
+            itemId === selectedId,
+            setPlayerCurrentObject
+        );
         contentEl.appendChild(itemEl);
     });
 }
 
+function renderPlayerFocusColumn() {
+    const headerEl = state.el_player_focus_column.querySelector(".column-header");
+    const contentEl = state.el_player_focus_column.querySelector(".column-content");
+
+    headerEl.innerHTML = state.obj_player_current
+        ? formatObjectName(state.obj_player_current)
+        : " ";
+    contentEl.innerHTML = "";
+
+    const infoArea = document.createElement("div");
+    infoArea.className = "object-info-area";
+
+    if (state.obj_player_current) {
+        infoArea.innerHTML = `
+            <div class="object-property"><span>ID:</span> ${state.obj_player_current.id}</div>
+            <div class="object-property"><span>Type:</span> ${state.obj_player_current.type}</div>
+            <div class="object-property"><span>Quality:</span> ${state.obj_player_current.quality || 0}</div>
+            <div class="object-property"><span>Damage:</span> ${state.obj_player_current.damage || 0}</div>
+            <div class="object-property"><span>Weight:</span> ${state.obj_player_current.weight || 0}</div>
+        `;
+    }
+
+    contentEl.appendChild(infoArea);
+
+    const childrenArea = document.createElement("div");
+    childrenArea.className = "children-area";
+    contentEl.appendChild(childrenArea);
+
+    if (state.obj_player_current) {
+        const children = state.id_children.get(state.obj_player_current.id) || [];
+        children.forEach(function (childId) {
+            const child = state.id_object.get(childId);
+            const childEl = createObjectItem(child, false, setPlayerCurrentObject);
+            childrenArea.appendChild(childEl);
+        });
+    }
+}
+
+const updatePlayerView = debounce(function () {
+    if (state.obj_player_current || state.player_id) {
+        renderPlayerSiblingColumn(
+            state.obj_player_current ? state.obj_player_current.id : null
+        );
+        renderPlayerFocusColumn();
+    } else {
+        state.el_player_sibling_column.querySelector(".column-header").innerHTML = " ";
+        state.el_player_sibling_column.querySelector(".column-content").innerHTML = "";
+        state.el_player_focus_column.querySelector(".column-header").innerHTML = " ";
+        state.el_player_focus_column.querySelector(".column-content").innerHTML = "";
+    }
+}, 50);
+
+function setPlayerCurrentObject(obj) {
+    if (!obj || obj.id === state.player_current?.id) {
+        updatePlayerView();
+        return;
+    }
+
+    // Restrict obj_player_current to the player object (body) or its children
+    const playerBody = state.id_object.get(state.player_id);
+    if (!playerBody) return;
+
+    let current = obj;
+    let isAtOrBelowBody = false;
+    while (current) {
+        if (current.id === playerBody.id) {
+            isAtOrBelowBody = true; // Object is the player body or a descendant
+            break;
+        }
+        current = state.id_object.get(current.parent_id);
+    }
+
+    if (!isAtOrBelowBody) {
+        console.log(
+            `Cannot set obj_player_current to ${obj.id}: not at or below player body ${state.player_id}`
+        );
+        return;
+    }
+
+    console.log(`Setting obj_player_current: ${obj.id}`);
+    state.obj_player_current = obj;
+    updatePlayerView();
+}
+
+// Object Explorer Functions (continued)
+function renderSiblingColumn(selectedId) {
+    const headerEl = state.el_sibling_column.querySelector(".column-header");
+    const contentEl = state.el_sibling_column.querySelector(".column-content");
+
+    const parent = state.obj_current ? getParent(state.obj_current) : null;
+    headerEl.innerHTML = parent ? createBreadcrumb(parent) : " ";
+
+    headerEl.querySelectorAll(".breadcrumb-link").forEach(function (link) {
+        link.addEventListener("click", function () {
+            setCurrentObject(state.id_object.get(link.dataset.id));
+        });
+    });
+
+    contentEl.innerHTML = "";
+    const parent_id = state.obj_current ? state.obj_current.parent_id : null;
+    const siblings = parent_id ? state.id_children.get(parent_id) || [] : [];
+
+    siblings.forEach(function (itemId) {
+        const item = state.id_object.get(itemId);
+        const itemEl = createObjectItem(item, itemId === selectedId, setCurrentObject);
+        contentEl.appendChild(itemEl);
+    });
+}
+
+function renderFocusColumn() {
+    const headerEl = state.el_focus_column.querySelector(".column-header");
+    const contentEl = state.el_focus_column.querySelector(".column-content");
+
+    headerEl.innerHTML = state.obj_current ? formatObjectName(state.obj_current) : " ";
+    contentEl.innerHTML = "";
+
+    const infoArea = document.createElement("div");
+    infoArea.className = "object-info-area";
+
+    if (state.obj_current) {
+        infoArea.innerHTML = `
+            <div class="object-property"><span>ID:</span> ${state.obj_current.id}</div>
+            <div class="object-property"><span>Type:</span> ${state.obj_current.type}</div>
+            <div class="object-property"><span>Quality:</span> ${state.obj_current.quality || 0}</div>
+            <div class="object-property"><span>Damage:</span> ${state.obj_current.damage || 0}</div>
+            <div class="object-property"><span>Weight:</span> ${state.obj_current.weight || 0}</div>
+        `;
+    }
+
+    contentEl.appendChild(infoArea);
+
+    const childrenArea = document.createElement("div");
+    childrenArea.className = "children-area";
+    contentEl.appendChild(childrenArea);
+
+    if (state.obj_current) {
+        const children = state.id_children.get(state.obj_current.id) || [];
+        children.forEach(function (childId) {
+            const child = state.id_object.get(childId);
+            const childEl = createObjectItem(child, false, setCurrentObject);
+            childrenArea.appendChild(childEl);
+        });
+    }
+}
+
 const updateView = debounce(function () {
-    renderColumn(
-        state.el_sibling_column,
-        state.obj_current
-            ? state.id_children.get(state.obj_current.parent_id) || [state.obj_current.id]
-            : [],
-        state.obj_current?.id,
-        false
-    );
-    renderColumn(
-        state.el_focus_column,
-        state.id_children.get(state.obj_current?.id) || [],
-        state.focused_column === "focus" ? state.id_focus_selected : null,
-        true
-    );
+    if (state.obj_current) {
+        renderSiblingColumn(state.obj_current.id);
+        renderFocusColumn();
+    } else {
+        state.el_sibling_column.querySelector(".column-header").innerHTML = " ";
+        state.el_sibling_column.querySelector(".column-content").innerHTML = "";
+        state.el_focus_column.querySelector(".column-header").innerHTML = " ";
+        state.el_focus_column.querySelector(".column-content").innerHTML = "";
+    }
+    updatePlayerView();
 }, 50);
 
 function setCurrentObject(obj) {
@@ -211,23 +412,22 @@ function setCurrentObject(obj) {
 
     console.log(`Setting obj_current: ${obj?.id}`);
     state.obj_current = obj;
-    state.focused_column = "sibling";
-    state.id_focus_selected = null;
     updateView();
 }
 
-function isObjectVisible(objId) {
-    if (!state.obj_current) return false;
+function isObjectVisible(objId, isPlayerExplorer = false) {
+    const current = isPlayerExplorer ? state.obj_player_current : state.obj_current;
+    if (!current) return false;
 
     const obj = state.id_object.get(objId);
     if (!obj) return false;
 
-    if (objId === state.obj_current.id) return true;
-    if (obj.parent_id === state.obj_current.id) return true;
-    if (state.obj_current.parent_id === objId) return true;
-    if (state.id_children.get(state.obj_current.parent_id)?.includes(objId)) return true;
+    if (objId === current.id) return true;
+    if (obj.parent_id === current.id) return true;
+    if (current.parent_id === objId) return true;
+    if (state.id_children.get(current.id)?.includes(objId)) return true;
 
-    const parent = getParent(state.obj_current);
+    const parent = getParent(current);
     if (parent && parent.parent_id === objId) return true;
 
     return false;
@@ -264,81 +464,58 @@ function processObject(snapshot) {
 
     if (!state.obj_current && state.focus_id === obj.id) {
         setCurrentObject(obj);
-    } else if (state.obj_current && isObjectVisible(obj.id)) {
+    } else if (state.obj_current && isObjectVisible(obj.id, false)) {
         updateView();
     }
 
-    return obj;
+    if (state.player_id === obj.parent_id && !state.obj_player_current) {
+        setPlayerCurrentObject(obj);
+    } else if (state.obj_player_current && isObjectVisible(obj.id, true)) {
+        updatePlayerView();
+    }
 }
 
 function handleKeyDown(e) {
     if (e.target instanceof HTMLInputElement) return;
 
-    const siblings = state.id_children.get(state.obj_current?.parent_id) || [];
-    const children = state.id_children.get(state.obj_current?.id) || [];
+    // Handle objectExplorer navigation
+    const parent_id = state.obj_current ? state.obj_current.parent_id : null;
+    const siblings = parent_id ? state.id_children.get(parent_id) || [] : [];
     const currentSiblingIndex = state.obj_current
         ? siblings.indexOf(state.obj_current.id)
-        : -1;
-    const currentFocusIndex = state.id_focus_selected
-        ? children.indexOf(state.id_focus_selected)
         : -1;
 
     let nextId;
     switch (e.key.toLowerCase()) {
         case "j":
         case "arrowdown":
-            if (
-                state.focused_column === "sibling" &&
-                currentSiblingIndex < siblings.length - 1
-            ) {
+            if (currentSiblingIndex < siblings.length - 1) {
                 nextId = siblings[currentSiblingIndex + 1];
                 setCurrentObject(state.id_object.get(nextId));
-            } else if (
-                state.focused_column === "focus" &&
-                currentFocusIndex < children.length - 1
-            ) {
-                state.id_focus_selected = children[currentFocusIndex + 1];
-                updateView();
             }
             break;
         case "k":
         case "arrowup":
-            if (state.focused_column === "sibling" && currentSiblingIndex > 0) {
+            if (currentSiblingIndex > 0) {
                 nextId = siblings[currentSiblingIndex - 1];
                 setCurrentObject(state.id_object.get(nextId));
-            } else if (state.focused_column === "focus" && currentFocusIndex > 0) {
-                state.id_focus_selected = children[currentFocusIndex - 1];
-                updateView();
             }
             break;
         case "l":
         case "arrowright":
-            if (state.focused_column === "sibling" && children.length > 0) {
-                state.focused_column = "focus";
-                state.id_focus_selected = children[0];
-                updateView();
-            } else if (state.focused_column === "focus" && state.id_focus_selected) {
-                setCurrentObject(state.id_object.get(state.id_focus_selected));
+            const children = state.obj_current
+                ? state.id_children.get(state.obj_current.id) || []
+                : [];
+            if (children.length > 0) {
+                nextId = children[0];
+                setCurrentObject(state.id_object.get(nextId));
             }
             break;
         case "h":
         case "arrowleft":
-            if (state.focused_column === "focus") {
-                state.focused_column = "sibling";
-                state.id_focus_selected = null;
-                updateView();
-            } else if (state.obj_current) {
+            if (state.obj_current) {
                 nextId = getParent(state.obj_current)?.id;
                 if (nextId) setCurrentObject(state.id_object.get(nextId));
-            }
-            break;
-        case "enter":
-            if (!e.ctrlKey) {
-                if (state.focused_column === "sibling" && state.obj_current) {
-                    setCurrentObject(state.obj_current);
-                } else if (state.focused_column === "focus" && state.id_focus_selected) {
-                    setCurrentObject(state.id_object.get(state.id_focus_selected));
-                }
             }
             break;
     }
@@ -354,13 +531,11 @@ function resetClientState() {
     state.id_object.clear();
     state.id_children.clear();
     state.obj_current = null;
-    state.focused_column = "sibling";
-    state.id_focus_selected = null;
+    state.obj_player_current = null;
     state.channel = "global";
     updateView();
 }
 
-// Event Listeners
 document.addEventListener("keydown", function (e) {
     if (e.ctrlKey && e.key === "I") {
         toggleVisibility(keybindPopup);
@@ -399,9 +574,15 @@ worker.addEventListener("init", function (e) {
     const { clientId, clientSecret, keepAliveTimeout, isRejoin, player_id } = e.detail;
     if (clientSecret) localStorage.setItem("clientSecret", clientSecret);
     if (player_id) {
+        state.player_id = player_id;
         state.focus_id = player_id;
         if (!state.obj_current && state.id_object.has(player_id)) {
             setCurrentObject(state.id_object.get(player_id));
+        }
+        if (!state.obj_player_current) {
+            const player_children = state.id_children.get(player_id) || [];
+            if (player_children.length)
+                setPlayerCurrentObject(state.id_object.get(player_children[0]));
         }
     }
 });
