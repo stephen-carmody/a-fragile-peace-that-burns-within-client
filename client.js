@@ -1,120 +1,158 @@
 // client.js
-const keybindPopup = document.getElementById("keybindPopup");
-const chatInput = document.getElementById("chatInput");
-const messagesContainer = document.getElementById("messages");
-const chatContainer = document.getElementById("chatContainer");
-const sidebarButton = document.querySelector(".sidebar button");
 
-// Client State Object
+// === DOM Utilities ===================
+const getElement = document.getElementById.bind(document);
+const elements = {
+    keybindPopup: getElement("keybindPopup"),
+    chatInput: getElement("chatInput"),
+    messagesContainer: getElement("messages"),
+    chatContainer: getElement("chatContainer"),
+    objectExplorer: getElement("objectExplorer"),
+    siblingColumn: getElement("siblingColumn"),
+    focusColumn: getElement("focusColumn"),
+    playerSiblingColumn: getElement("playerSiblingColumn"),
+    playerFocusColumn: getElement("playerFocusColumn"),
+    toggleChatBtn: getElement("toggleChatBtn"),
+    sidebarButton: document.querySelector(".sidebar button"),
+};
+
+// === State Management ===================
 const state = {
-    id_object: new Map(),
-    id_children: new Map(),
-    obj_current: null,
-    obj_player_current: null,
-    el_explorer: document.getElementById("objectExplorer"),
-    el_sibling_column: document.getElementById("siblingColumn"),
-    el_focus_column: document.getElementById("focusColumn"),
-    el_player_sibling_column: document.getElementById("playerSiblingColumn"),
-    el_player_focus_column: document.getElementById("playerFocusColumn"),
-    player_id: null,
-    focus_id: null,
+    objectsById: new Map(), // All objects by ID
+    childrenById: new Map(), // Children IDs by parent ID
+    currentObject: null, // Current world object explorer focus
+    currentPlayerObject: null, // Current player object explorer focus
+    playerId: null, // This clients player object id
+    focusId: null, // Object explorers focus id
     channel: "global",
 };
 
-setChannel(state.channel);
+// Initialize channel
+setChatChannel(state.channel);
 
-// Utility Functions (unchanged)
-function toggleVisibility(element) {
+// === Utility Functions ===================
+function toggleElementVisibility(element) {
     element.style.display = element.style.display === "block" ? "none" : "block";
 }
 
 function debounce(fn, delay) {
     let timeout;
-    return function (...args) {
+    return (...args) => {
         clearTimeout(timeout);
-        timeout = setTimeout(function () {
-            fn(...args);
-        }, delay);
+        timeout = setTimeout(() => fn(...args), delay);
     };
 }
 
-// Chat Functions (unchanged)
-function toggleChat() {
-    chatContainer.classList.toggle("hidden");
-    sidebarButton.textContent = chatContainer.classList.contains("hidden") ? "❯❯" : "❮❮";
-    chatInput[chatContainer.classList.contains("hidden") ? "blur" : "focus"]();
+const hslToHex = ((cache = new Map()) => {
+    return function memoizedHslToHex(h, s, l) {
+        const key = `${h},${s},${l}`;
+
+        // Return cached result if available
+        if (cache.has(key)) {
+            return cache.get(key);
+        }
+
+        s /= 100;
+        l /= 100;
+        const a = s * Math.min(l, 1 - l);
+        const f = (n) => {
+            const k = (n + h / 30) % 12;
+            const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+            return Math.round(255 * color)
+                .toString(16)
+                .padStart(2, "0");
+        };
+        const result = `#${f(0)}${f(8)}${f(4)}`;
+
+        // Cache the result
+        cache.set(key, result);
+        return result;
+    };
+})();
+
+// === Chat Module ===================
+function toggleChatVisibility() {
+    const container = elements.chatContainer;
+    container.classList.toggle("hidden");
+    elements.sidebarButton.textContent = container.classList.contains("hidden") ? "❯❯" : "❮❮";
+    elements.chatInput[container.classList.contains("hidden") ? "blur" : "focus"]();
 }
 
-function sendMessage() {
-    const message = chatInput.value.trim();
-    if (!message) return;
-    displayMessage(message, "sent", state.channel);
+function sendChatMessage() {
+    const message = elements.chatInput.value.trim();
+    if (!message) {
+        return;
+    }
+    displayChatMessage(message, "sent", state.channel);
     worker.postMessage({ type: "chat", content: message });
-    chatInput.value = "";
+    elements.chatInput.value = "";
 }
 
-function displayMessage(text, type, channel = "global") {
-    const newMessage = document.createElement("div");
-    newMessage.textContent = text;
-    newMessage.classList.add("message");
-    newMessage.dataset.channel = channel;
-    newMessage.dataset.direction = type === "sent" ? "sent" : "received";
-    newMessage.style.display = channel === state.channel ? "block" : "none";
-    messagesContainer.appendChild(newMessage);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+function displayChatMessage(text, direction, channel = "global") {
+    const el = document.createElement("div");
+    el.textContent = text;
+    el.classList.add("message");
+    el.dataset.channel = channel;
+    el.dataset.direction = direction;
+    el.style.display = channel === state.channel ? "block" : "none";
+    elements.messagesContainer.appendChild(el);
+    elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
 }
 
-function setChannel(channel) {
+function setChatChannel(channel) {
     state.channel = channel;
-    filterMessages();
-    if (chatContainer.classList.contains("hidden")) toggleChat();
-    document.querySelectorAll(".channelBtn").forEach(function (btn) {
+    filterChatMessages();
+    if (elements.chatContainer.classList.contains("hidden")) {
+        toggleChatVisibility();
+    }
+    document.querySelectorAll(".channelBtn").forEach((btn) => {
         btn.style.textShadow =
             btn.dataset.channel === state.channel ? "0 0 0 #87CEEB" : "0 0 0 white";
     });
 }
 
-function filterMessages() {
-    document.querySelectorAll(".message").forEach(function (msg) {
+function filterChatMessages() {
+    document.querySelectorAll(".message").forEach((msg) => {
         msg.style.display = msg.dataset.channel === state.channel ? "block" : "none";
     });
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
 }
 
-// Object Explorer Functions
-function getParent(obj) {
-    return state.id_object.get(obj.parent_id);
+// === Explorer Utilities ===================
+function getObjectParent(obj) {
+    return state.objectsById.get(obj.parent_id);
 }
 
-function formatObjectName(obj) {
+function formatObjectLabel(obj) {
     return `${obj.type} <span style="color:${getQualityColor(obj.quality)}">${obj.name}</span>`;
 }
 
-function getParentChain(obj, max = 3) {
+function buildParentChain(obj, max = 3) {
     const chain = [];
     let current = obj;
     while (current && current.type !== "root" && chain.length < max) {
         chain.unshift(current);
-        current = state.id_object.get(current.parent_id);
+        current = state.objectsById.get(current.parent_id);
     }
     return chain;
 }
 
-function createBreadcrumb(endObject, max = 3) {
-    if (!endObject) return " ";
-    const chain = getParentChain(endObject, max);
-
+function generateBreadcrumb(obj, max = 3) {
+    if (!obj) {
+        return " ";
+    }
+    const chain = buildParentChain(obj, max);
     let breadcrumb = "";
     if (chain.length > 1 && chain[0].parent_id) {
         breadcrumb += `<span class="breadcrumb-link" data-id="${chain[0].id}">...</span> / `;
     }
-    chain.slice(-1).forEach(function (obj) {
-        breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${formatObjectName(obj)}</span> / `;
+    chain.slice(-1).forEach((obj) => {
+        breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${formatObjectLabel(obj)}</span> / `;
     });
     return breadcrumb;
 }
 
-function createObjectItem(obj, isSelected = false, onClickHandler) {
+function createObjectElement(obj, isSelected = false, onClick) {
     const itemEl = document.createElement("div");
     itemEl.className = `object-item${isSelected ? " selected" : ""}`;
 
@@ -124,15 +162,14 @@ function createObjectItem(obj, isSelected = false, onClickHandler) {
     itemEl.appendChild(damageBg);
 
     const textEl = document.createElement("div");
-    textEl.innerHTML = formatObjectName(obj);
-
+    textEl.innerHTML = formatObjectLabel(obj);
     itemEl.appendChild(textEl);
-    itemEl.addEventListener("click", () => onClickHandler(obj));
 
+    itemEl.addEventListener("click", () => onClick(obj));
     return itemEl;
 }
 
-function getQualityColor(quality) {
+const getQualityColor = ((cache = new Map()) => {
     const colorStops = [
         { quality: 0.0, h: 0, s: 0, l: 0 },
         { quality: 0.1, h: 0, s: 0, l: 50 },
@@ -145,460 +182,324 @@ function getQualityColor(quality) {
         { quality: 1.0, h: 300, s: 100, l: 50 },
     ];
 
-    for (let i = 0; i < colorStops.length - 1; i++) {
-        const current = colorStops[i];
-        const next = colorStops[i + 1];
-        if (quality >= current.quality && quality <= next.quality) {
-            const t = (quality - current.quality) / (next.quality - current.quality);
-            const h = Math.round(current.h + (next.h - current.h) * t);
-            const s = Math.round(current.s + (next.s - current.s) * t);
-            const l = Math.round(current.l + (next.l - current.l) * t);
-            return hslToHex(h, s, l);
+    return function memoizedGetQualityColor(quality) {
+        // Return cached result if available
+        if (cache.has(quality)) {
+            return cache.get(quality);
         }
-    }
-    return "";
-}
 
-function hslToHex(h, s, l) {
-    s /= 100;
-    l /= 100;
-    let c = (1 - Math.abs(2 * l - 1)) * s;
-    let x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    let m = l - c / 2;
-    let r = 0,
-        g = 0,
-        b = 0;
+        for (let i = 0; i < colorStops.length - 1; i++) {
+            const current = colorStops[i];
+            const next = colorStops[i + 1];
+            if (quality >= current.quality && quality <= next.quality) {
+                const t = (quality - current.quality) / (next.quality - current.quality);
+                const h = Math.round(current.h + (next.h - current.h) * t);
+                const s = Math.round(current.s + (next.s - current.s) * t);
+                const l = Math.round(current.l + (next.l - current.l) * t);
+                const result = hslToHex(h, s, l);
 
-    if (h >= 0 && h < 60) {
-        r = c;
-        g = x;
-        b = 0;
-    } else if (h < 120) {
-        r = x;
-        g = c;
-        b = 0;
-    } else if (h < 180) {
-        r = 0;
-        g = c;
-        b = x;
-    } else if (h < 240) {
-        r = 0;
-        g = x;
-        b = c;
-    } else if (h < 300) {
-        r = x;
-        g = 0;
-        b = c;
-    } else if (h < 360) {
-        r = c;
-        g = 0;
-        b = x;
-    }
+                // Cache the result
+                cache.set(quality, result);
+                return result;
+            }
+        }
 
-    r = Math.round((r + m) * 255)
-        .toString(16)
-        .padStart(2, "0");
-    g = Math.round((g + m) * 255)
-        .toString(16)
-        .padStart(2, "0");
-    b = Math.round((b + m) * 255)
-        .toString(16)
-        .padStart(2, "0");
-    return `#${r}${g}${b}`;
-}
+        // Cache and return default empty string for out-of-range values
+        cache.set(quality, "");
+        return "";
+    };
+})();
 
-// Player Explorer Functions
-function renderPlayerSiblingColumn(selectedId) {
-    const headerEl = state.el_player_sibling_column.querySelector(".column-header");
-    const contentEl = state.el_player_sibling_column.querySelector(".column-content");
+// === Object Explorer Module ===================
+function renderSiblingList(selectedId, explorerType = "object") {
+    const isPlayer = explorerType === "player";
+    const stateKey = isPlayer ? "currentPlayerObject" : "currentObject";
+    const columnEl = isPlayer ? elements.playerSiblingColumn : elements.siblingColumn;
+    const headerEl = columnEl.querySelector(".column-header");
+    const contentEl = columnEl.querySelector(".column-content");
 
-    const parent = state.obj_player_current ? getParent(state.obj_player_current) : null;
+    const currentObj = state[stateKey];
+    const parent = currentObj ? getObjectParent(currentObj) : null;
     headerEl.innerHTML = parent
-        ? createBreadcrumb(parent)
-        : state.player_id
-          ? formatObjectName(state.id_object.get(state.player_id))
+        ? generateBreadcrumb(parent)
+        : isPlayer && state.playerId
+          ? formatObjectLabel(state.objectsById.get(state.playerId))
           : " ";
 
-    headerEl.querySelectorAll(".breadcrumb-link").forEach(function (link) {
-        link.addEventListener("click", function () {
-            setPlayerCurrentObject(state.id_object.get(link.dataset.id));
-        });
+    headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
+        link.addEventListener("click", () =>
+            (isPlayer ? setPlayerCurrentObject : setCurrentObject)(
+                state.objectsById.get(link.dataset.id)
+            )
+        );
     });
 
     contentEl.innerHTML = "";
-    const parent_id = state.obj_player_current
-        ? state.obj_player_current.parent_id
-        : state.player_id;
-    const siblings = parent_id
-        ? state.id_children.get(parent_id) || []
-        : state.player_id
-          ? state.id_children.get(state.player_id) || []
-          : [];
+    const parentId = currentObj ? currentObj.parent_id : isPlayer ? state.playerId : null;
+    const siblings = parentId ? state.childrenById.get(parentId) || [] : [];
 
-    siblings.forEach(function (itemId) {
-        const item = state.id_object.get(itemId);
-        const itemEl = createObjectItem(
+    siblings.forEach((itemId) => {
+        const item = state.objectsById.get(itemId);
+        const itemEl = createObjectElement(
             item,
             itemId === selectedId,
-            setPlayerCurrentObject
+            isPlayer ? setPlayerCurrentObject : setCurrentObject
         );
         contentEl.appendChild(itemEl);
     });
 }
 
-function renderPlayerFocusColumn() {
-    const headerEl = state.el_player_focus_column.querySelector(".column-header");
-    const contentEl = state.el_player_focus_column.querySelector(".column-content");
+function renderFocusDetails(explorerType = "object") {
+    const isPlayer = explorerType === "player";
+    const stateKey = isPlayer ? "currentPlayerObject" : "currentObject";
+    const columnEl = isPlayer ? elements.playerFocusColumn : elements.focusColumn;
+    const headerEl = columnEl.querySelector(".column-header");
+    const contentEl = columnEl.querySelector(".column-content");
 
-    headerEl.innerHTML = state.obj_player_current
-        ? formatObjectName(state.obj_player_current)
-        : " ";
+    const currentObj = state[stateKey];
+    headerEl.innerHTML = currentObj ? formatObjectLabel(currentObj) : " ";
     contentEl.innerHTML = "";
 
     const infoArea = document.createElement("div");
     infoArea.className = "object-info-area";
-
-    if (state.obj_player_current) {
+    if (currentObj) {
         infoArea.innerHTML = `
-            <div class="object-property"><span>ID:</span> ${state.obj_player_current.id}</div>
-            <div class="object-property"><span>Type:</span> ${state.obj_player_current.type}</div>
-            <div class="object-property"><span>Quality:</span> ${state.obj_player_current.quality || 0}</div>
-            <div class="object-property"><span>Damage:</span> ${state.obj_player_current.damage || 0}</div>
-            <div class="object-property"><span>Weight:</span> ${state.obj_player_current.weight || 0}</div>
+            <div class="object-property"><span>ID:</span> ${currentObj.id}</div>
+            <div class="object-property"><span>Type:</span> ${currentObj.type}</div>
+            <div class="object-property"><span>Quality:</span> ${currentObj.quality || 0}</div>
+            <div class="object-property"><span>Damage:</span> ${currentObj.damage || 0}</div>
+            <div class="object-property"><span>Weight:</span> ${currentObj.weight || 0}</div>
         `;
     }
-
     contentEl.appendChild(infoArea);
 
     const childrenArea = document.createElement("div");
     childrenArea.className = "children-area";
     contentEl.appendChild(childrenArea);
 
-    if (state.obj_player_current) {
-        const children = state.id_children.get(state.obj_player_current.id) || [];
-        children.forEach(function (childId) {
-            const child = state.id_object.get(childId);
-            const childEl = createObjectItem(child, false, setPlayerCurrentObject);
+    if (currentObj) {
+        const children = state.childrenById.get(currentObj.id) || [];
+        children.forEach((childId) => {
+            const child = state.objectsById.get(childId);
+            const childEl = createObjectElement(
+                child,
+                false,
+                isPlayer ? setPlayerCurrentObject : setCurrentObject
+            );
             childrenArea.appendChild(childEl);
         });
     }
 }
 
-const updatePlayerView = debounce(function () {
-    if (state.obj_player_current || state.player_id) {
-        renderPlayerSiblingColumn(
-            state.obj_player_current ? state.obj_player_current.id : null
-        );
-        renderPlayerFocusColumn();
+const updateExplorerView = debounce(() => {
+    if (state.currentObject) {
+        renderSiblingList(state.currentObject.id, "object");
+        renderFocusDetails("object");
     } else {
-        state.el_player_sibling_column.querySelector(".column-header").innerHTML = " ";
-        state.el_player_sibling_column.querySelector(".column-content").innerHTML = "";
-        state.el_player_focus_column.querySelector(".column-header").innerHTML = " ";
-        state.el_player_focus_column.querySelector(".column-content").innerHTML = "";
+        clearColumn(elements.siblingColumn);
+        clearColumn(elements.focusColumn);
     }
-}, 50);
-
-function setPlayerCurrentObject(obj) {
-    if (!obj || obj.id === state.player_current?.id) {
-        updatePlayerView();
-        return;
-    }
-
-    // Restrict obj_player_current to the player object (body) or its children
-    const playerBody = state.id_object.get(state.player_id);
-    if (!playerBody) return;
-
-    let current = obj;
-    let isAtOrBelowBody = false;
-    while (current) {
-        if (current.id === playerBody.id) {
-            isAtOrBelowBody = true; // Object is the player body or a descendant
-            break;
-        }
-        current = state.id_object.get(current.parent_id);
-    }
-
-    if (!isAtOrBelowBody) {
-        console.log(
-            `Cannot set obj_player_current to ${obj.id}: not at or below player body ${state.player_id}`
-        );
-        return;
-    }
-
-    console.log(`Setting obj_player_current: ${obj.id}`);
-    state.obj_player_current = obj;
-    updatePlayerView();
-}
-
-// Object Explorer Functions (continued)
-function renderSiblingColumn(selectedId) {
-    const headerEl = state.el_sibling_column.querySelector(".column-header");
-    const contentEl = state.el_sibling_column.querySelector(".column-content");
-
-    const parent = state.obj_current ? getParent(state.obj_current) : null;
-    headerEl.innerHTML = parent ? createBreadcrumb(parent) : " ";
-
-    headerEl.querySelectorAll(".breadcrumb-link").forEach(function (link) {
-        link.addEventListener("click", function () {
-            setCurrentObject(state.id_object.get(link.dataset.id));
-        });
-    });
-
-    contentEl.innerHTML = "";
-    const parent_id = state.obj_current ? state.obj_current.parent_id : null;
-    const siblings = parent_id ? state.id_children.get(parent_id) || [] : [];
-
-    siblings.forEach(function (itemId) {
-        const item = state.id_object.get(itemId);
-        const itemEl = createObjectItem(item, itemId === selectedId, setCurrentObject);
-        contentEl.appendChild(itemEl);
-    });
-}
-
-function renderFocusColumn() {
-    const headerEl = state.el_focus_column.querySelector(".column-header");
-    const contentEl = state.el_focus_column.querySelector(".column-content");
-
-    headerEl.innerHTML = state.obj_current ? formatObjectName(state.obj_current) : " ";
-    contentEl.innerHTML = "";
-
-    const infoArea = document.createElement("div");
-    infoArea.className = "object-info-area";
-
-    if (state.obj_current) {
-        infoArea.innerHTML = `
-            <div class="object-property"><span>ID:</span> ${state.obj_current.id}</div>
-            <div class="object-property"><span>Type:</span> ${state.obj_current.type}</div>
-            <div class="object-property"><span>Quality:</span> ${state.obj_current.quality || 0}</div>
-            <div class="object-property"><span>Damage:</span> ${state.obj_current.damage || 0}</div>
-            <div class="object-property"><span>Weight:</span> ${state.obj_current.weight || 0}</div>
-        `;
-    }
-
-    contentEl.appendChild(infoArea);
-
-    const childrenArea = document.createElement("div");
-    childrenArea.className = "children-area";
-    contentEl.appendChild(childrenArea);
-
-    if (state.obj_current) {
-        const children = state.id_children.get(state.obj_current.id) || [];
-        children.forEach(function (childId) {
-            const child = state.id_object.get(childId);
-            const childEl = createObjectItem(child, false, setCurrentObject);
-            childrenArea.appendChild(childEl);
-        });
-    }
-}
-
-const updateView = debounce(function () {
-    if (state.obj_current) {
-        renderSiblingColumn(state.obj_current.id);
-        renderFocusColumn();
+    if (state.currentPlayerObject || state.playerId) {
+        renderSiblingList(state.currentPlayerObject?.id, "player");
+        renderFocusDetails("player");
     } else {
-        state.el_sibling_column.querySelector(".column-header").innerHTML = " ";
-        state.el_sibling_column.querySelector(".column-content").innerHTML = "";
-        state.el_focus_column.querySelector(".column-header").innerHTML = " ";
-        state.el_focus_column.querySelector(".column-content").innerHTML = "";
+        clearColumn(elements.playerSiblingColumn);
+        clearColumn(elements.playerFocusColumn);
     }
-    updatePlayerView();
-}, 50);
+}, 100);
+
+function clearColumn(columnEl) {
+    columnEl.querySelector(".column-header").innerHTML = " ";
+    columnEl.querySelector(".column-content").innerHTML = "";
+}
 
 function setCurrentObject(obj) {
-    if (obj === state.obj_current) {
-        updateView();
+    if (obj === state.currentObject) {
+        return updateExplorerView();
+    }
+    console.log(`Setting currentObject: ${obj?.id}`);
+    state.currentObject = obj;
+    updateExplorerView();
+}
+
+function setPlayerCurrentObject(obj) {
+    if (!obj || obj.id === state.currentPlayerObject?.id) {
+        return updateExplorerView();
+    }
+
+    const isDescendant = (target, ancestorId) => {
+        for (let curr = target; curr; curr = state.objectsById.get(curr.parent_id)) {
+            if (curr.id === ancestorId) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (state.playerId && isDescendant(obj, state.playerId)) {
+        state.currentPlayerObject = obj;
+        updateExplorerView();
+    }
+}
+
+// === Event Handlers ===================
+function handleNavigationKeyDown(e) {
+    if (e.target instanceof HTMLInputElement) {
         return;
     }
 
-    console.log(`Setting obj_current: ${obj?.id}`);
-    state.obj_current = obj;
-    updateView();
+    const current = state.currentObject;
+    const siblings = state.childrenById.get(current?.parent_id) || [];
+    const keyMap = {
+        j: siblings[siblings.indexOf(current?.id) + 1],
+        arrowdown: siblings[siblings.indexOf(current?.id) + 1],
+        k: siblings[siblings.indexOf(current?.id) - 1],
+        arrowup: siblings[siblings.indexOf(current?.id) - 1],
+        l: (state.childrenById.get(current?.id) || [])[0],
+        arrowright: (state.childrenById.get(current?.id) || [])[0],
+        h: getObjectParent(current)?.id,
+        arrowleft: getObjectParent(current)?.id,
+    };
+
+    const nextId = keyMap[e.key.toLowerCase()];
+    if (nextId) {
+        setCurrentObject(state.objectsById.get(nextId)), e.preventDefault();
+    }
+}
+
+function toggleObjectExplorer() {
+    elements.objectExplorer.classList.toggle("hidden");
+}
+
+function resetAppState() {
+    state.objectsById.clear();
+    state.childrenById.clear();
+    state.currentObject = null;
+    state.currentPlayerObject = null;
+    state.channel = "global";
+    updateExplorerView();
+}
+
+// === Worker Communication ===================
+const worker = new Worker("worker.js");
+
+worker.onmessage = ({ data }) => {
+    console.log("Received <-", data);
+    if (data.type) {
+        worker.dispatchEvent(new CustomEvent(data.type, { detail: data }));
+    } else {
+        processObjectUpdate(data);
+    }
+};
+
+function processObjectUpdate(snapshot) {
+    const parts = snapshot.o.split(";");
+    const obj = Object.assign(state.objectsById.get(parts[1]) || { id: parts[1] }, {
+        type: parts[2],
+        name: parts[3],
+        quality: parseFloat(parts[4]),
+        damage: parseFloat(parts[5]),
+        weight: parseFloat(parts[6]),
+        ...Object.fromEntries(
+            parts.slice(7).map((p) => {
+                const [k, v] = p.split("=");
+                return [k, isNaN(v) ? v : parseFloat(v)];
+            })
+        ),
+    });
+
+    if (parts[0] !== obj.parent_id) {
+        state.childrenById
+            .get(obj.parent_id)
+            ?.splice(state.childrenById.get(obj.parent_id)?.indexOf(obj.id), 1);
+        obj.parent_id = parts[0];
+        state.childrenById.set(
+            obj.parent_id,
+            (state.childrenById.get(obj.parent_id) || []).concat(obj.id)
+        );
+    }
+
+    state.objectsById.set(obj.id, obj);
+    (!state.currentObject && state.focusId === obj.id && setCurrentObject(obj)) ||
+        (state.currentObject && isObjectVisible(obj.id, false) && updateExplorerView());
+
+    (state.playerId === obj.parent_id &&
+        !state.currentPlayerObject &&
+        setPlayerCurrentObject(obj)) ||
+        (state.currentPlayerObject && isObjectVisible(obj.id, true) && updateExplorerView());
 }
 
 function isObjectVisible(objId, isPlayerExplorer = false) {
-    const current = isPlayerExplorer ? state.obj_player_current : state.obj_current;
-    if (!current) return false;
-
-    const obj = state.id_object.get(objId);
-    if (!obj) return false;
-
-    if (objId === current.id) return true;
-    if (obj.parent_id === current.id) return true;
-    if (current.parent_id === objId) return true;
-    if (state.id_children.get(current.id)?.includes(objId)) return true;
-
-    const parent = getParent(current);
-    if (parent && parent.parent_id === objId) return true;
-
-    return false;
-}
-
-function processObject(snapshot) {
-    const parts = snapshot.o.split(";");
-    let obj = state.id_object.get(parts[1]) || { id: parts[1] };
-
-    obj.type = parts[2];
-    obj.name = parts[3];
-    obj.quality = parseFloat(parts[4]);
-    obj.damage = parseFloat(parts[5]);
-    obj.weight = parseFloat(parts[6]);
-    for (let i = 7; i < parts.length; i++) {
-        const [key, value] = parts[i].split("=");
-        obj[key] = isNaN(value) ? value : parseFloat(value);
+    const current = isPlayerExplorer ? state.currentPlayerObject : state.currentObject;
+    if (!current || !state.objectsById.has(objId)) {
+        return false;
     }
 
-    if (parts[0] !== obj.parent_id) {
-        if (state.id_children.has(obj.parent_id)) {
-            const oldSiblings = state.id_children.get(obj.parent_id);
-            const index = oldSiblings.indexOf(obj.id);
-            if (index > -1) oldSiblings.splice(index, 1);
-        }
-        obj.parent_id = parts[0];
-        state.id_children.set(
-            obj.parent_id,
-            (state.id_children.get(obj.parent_id) || []).concat(obj.id)
-        );
-    }
-
-    state.id_object.set(obj.id, obj);
-
-    if (!state.obj_current && state.focus_id === obj.id) {
-        setCurrentObject(obj);
-    } else if (state.obj_current && isObjectVisible(obj.id, false)) {
-        updateView();
-    }
-
-    if (state.player_id === obj.parent_id && !state.obj_player_current) {
-        setPlayerCurrentObject(obj);
-    } else if (state.obj_player_current && isObjectVisible(obj.id, true)) {
-        updatePlayerView();
-    }
+    return [
+        current.id,
+        state.objectsById.get(objId).parent_id,
+        current.parent_id,
+        ...(state.childrenById.get(current.id) || []),
+        getObjectParent(current)?.parent_id,
+    ].includes(objId);
 }
 
-function handleKeyDown(e) {
-    if (e.target instanceof HTMLInputElement) return;
-
-    // Handle objectExplorer navigation
-    const parent_id = state.obj_current ? state.obj_current.parent_id : null;
-    const siblings = parent_id ? state.id_children.get(parent_id) || [] : [];
-    const currentSiblingIndex = state.obj_current
-        ? siblings.indexOf(state.obj_current.id)
-        : -1;
-
-    let nextId;
-    switch (e.key.toLowerCase()) {
-        case "j":
-        case "arrowdown":
-            if (currentSiblingIndex < siblings.length - 1) {
-                nextId = siblings[currentSiblingIndex + 1];
-                setCurrentObject(state.id_object.get(nextId));
-            }
-            break;
-        case "k":
-        case "arrowup":
-            if (currentSiblingIndex > 0) {
-                nextId = siblings[currentSiblingIndex - 1];
-                setCurrentObject(state.id_object.get(nextId));
-            }
-            break;
-        case "l":
-        case "arrowright":
-            const children = state.obj_current
-                ? state.id_children.get(state.obj_current.id) || []
-                : [];
-            if (children.length > 0) {
-                nextId = children[0];
-                setCurrentObject(state.id_object.get(nextId));
-            }
-            break;
-        case "h":
-        case "arrowleft":
-            if (state.obj_current) {
-                nextId = getParent(state.obj_current)?.id;
-                if (nextId) setCurrentObject(state.id_object.get(nextId));
-            }
-            break;
-    }
-
-    if (nextId) e.preventDefault();
-}
-
-function toggleExplorer() {
-    state.el_explorer.classList.toggle("hidden");
-}
-
-function resetClientState() {
-    state.id_object.clear();
-    state.id_children.clear();
-    state.obj_current = null;
-    state.obj_player_current = null;
-    state.channel = "global";
-    updateView();
-}
-
-document.addEventListener("keydown", function (e) {
+// === Event Listeners ===================
+document.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key === "I") {
-        toggleVisibility(keybindPopup);
+        toggleElementVisibility(elements.keybindPopup);
         e.preventDefault();
     } else if (e.ctrlKey && e.key === "Enter") {
-        toggleChat();
+        toggleChatVisibility();
         e.preventDefault();
     }
 });
 
-chatInput.addEventListener("keydown", function (e) {
-    if (!e.ctrlKey && e.key === "Enter") sendMessage();
+elements.chatInput.addEventListener("keydown", (e) => {
+    if (!e.ctrlKey && e.key === "Enter") {
+        sendChatMessage();
+    }
 });
 
-document.getElementById("toggleChatBtn").addEventListener("click", toggleChat);
+elements.toggleChatBtn.addEventListener("click", toggleChatVisibility);
 
-document.querySelectorAll(".channelBtn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-        setChannel(btn.dataset.channel);
-    });
+document.querySelectorAll(".channelBtn").forEach((btn) => {
+    btn.addEventListener("click", () => setChatChannel(btn.dataset.channel));
 });
 
-document.addEventListener("keydown", handleKeyDown);
+document.addEventListener("keydown", handleNavigationKeyDown);
 
-// Initialize
-const worker = new Worker("worker.js");
-
-worker.onmessage = function ({ data }) {
-    console.log("Received <-", data);
-    if (data.type)
-        return worker.dispatchEvent(new CustomEvent(data.type, { detail: data }));
-    processObject(data);
-};
-
-worker.addEventListener("init", function (e) {
-    const { clientId, clientSecret, keepAliveTimeout, isRejoin, player_id } = e.detail;
-    if (clientSecret) localStorage.setItem("clientSecret", clientSecret);
+worker.addEventListener("init", ({ detail }) => {
+    const { clientId, clientSecret, player_id } = detail;
+    if (clientSecret) {
+        localStorage.setItem("clientSecret", clientSecret);
+    }
     if (player_id) {
-        state.player_id = player_id;
-        state.focus_id = player_id;
-        if (!state.obj_current && state.id_object.has(player_id)) {
-            setCurrentObject(state.id_object.get(player_id));
+        state.playerId = player_id;
+        state.focusId = player_id;
+        if (!state.currentObject && state.objectsById.has(player_id)) {
+            setCurrentObject(state.objectsById.get(player_id));
         }
-        if (!state.obj_player_current) {
-            const player_children = state.id_children.get(player_id) || [];
-            if (player_children.length)
-                setPlayerCurrentObject(state.id_object.get(player_children[0]));
+        if (!state.currentPlayerObject) {
+            const playerChildren = state.childrenById.get(player_id) || [];
+            if (playerChildren.length) {
+                setPlayerCurrentObject(state.objectsById.get(playerChildren[0]));
+            }
         }
     }
 });
 
-worker.addEventListener("offline", function (e) {
-    const { message } = e.detail;
-    displayMessage(message, "received", "global");
-    resetClientState();
+worker.addEventListener("offline", ({ detail }) => {
+    displayChatMessage(detail.message, "received", "global");
+    resetAppState();
 });
 
-worker.addEventListener("chat", function (e) {
-    const { content, channel } = e.detail;
-    displayMessage(content, "received", channel);
+worker.addEventListener("chat", ({ detail }) => {
+    displayChatMessage(detail.content, "received", detail.channel);
 });
 
-displayMessage("Connecting to server...", "system", "global");
+// === Initialization ===================
+displayChatMessage("Connecting to server...", "system", "global");
 worker.postMessage({
     type: "connect",
     url: "ws://localhost:8080",

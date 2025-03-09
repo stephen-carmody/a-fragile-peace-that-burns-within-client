@@ -7,14 +7,14 @@ let keepAliveTimeout = 30000;
 let lastSentTime = 0;
 
 async function connect() {
-    socket = new WebSocket(wsUrl);
+    socket = new WebSocket(`${wsUrl}?secret=${clientSecret}`);
 
     socket.onopen = () => {
         reconnectAttempts = 0;
-        sendMessage({ type: "init", clientSecret });
     };
 
     socket.onmessage = ({ data }) => {
+        console.log(`worker:received <- ${data}`);
         data.split("\n").forEach((msg) => {
             try {
                 const parsed = JSON.parse(msg);
@@ -49,7 +49,9 @@ setInterval(() => {
         sendBuffer.push(JSON.stringify({ type: "ping" }));
     }
     if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
-        socket.send(sendBuffer.join("\n"));
+        const message = sendBuffer.join("\n");
+        socket.send(message);
+        console.log(`worker:send -> ${message}`);
         sendBuffer = [];
         lastSentTime = Date.now();
     }
