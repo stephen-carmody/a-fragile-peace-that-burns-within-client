@@ -99,6 +99,23 @@ button {
     border-radius: 2px;
 }
 
+.explorer-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+}
+
+.explorer-wrapper.object-explorer {
+    flex: 1;
+}
+
+.explorer-wrapper.player-explorer {
+    height: 30%;
+    border-top: var(--border);
+    background: var(--chat-background);
+}
+
 .explorers-container {
     display: flex;
     flex-direction: column;
@@ -261,12 +278,12 @@ div#keybindPopup {
 
 #siblingColumn {
     flex: 1;
-    max-width: 50%;
+    width: 50%;
 }
 
 #focusColumn {
     flex: 1;
-    min-width: 50%;
+    width: 50%;
 }
 
 .explorer-column:last-child {

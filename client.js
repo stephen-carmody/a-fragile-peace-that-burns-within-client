@@ -1,5 +1,276 @@
 // client.js
 
+// === GameObjectExplorer Class ===================
+class GameObjectExplorer {
+    constructor(containerId, rootId = null) {
+        this.container = document.getElementById(containerId);
+        this.currentObject = null;
+        this.rootId = rootId; // Optional root ID defining the visibility boundary
+
+        this.initUI();
+        this.updateView = debounce(this.render.bind(this), 100);
+    }
+
+    initUI() {
+        this.container.innerHTML = `
+            <div class="explorer-content object-explorer">
+                <div class="explorer-column sibling-column">
+                    <div class="column-header"></div>
+                    <div class="column-content"></div>
+                </div>
+                <div class="explorer-column focus-column">
+                    <div class="column-header"></div>
+                    <div class="column-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.siblingColumn = this.container.querySelector(".sibling-column");
+        this.focusColumn = this.container.querySelector(".focus-column");
+    }
+
+    setRootId(id) {
+        this.rootId = id;
+        if (!this.currentObject && id) {
+            // Set to first child of root instead of root itself
+            const children = state.childrenById.get(id) || [];
+            if (children.length > 0) {
+                this.setCurrentObject(state.objectsById.get(children[0]));
+            }
+        }
+    }
+
+    getObjectParent(obj) {
+        return state.objectsById.get(obj?.parent_id);
+    }
+
+    formatObjectLabel(obj) {
+        return `${obj.type} <span style="color:${this.getQualityColor(obj.quality)}">${obj.name}</span>`;
+    }
+
+    buildParentChain(obj, max = 3) {
+        const chain = [];
+        let current = obj;
+        while (current && current.type !== "root" && chain.length < max) {
+            chain.unshift(current);
+            if (this.rootId && current.id === this.rootId) {
+                break;
+            }
+            current = this.getObjectParent(current);
+        }
+        return chain;
+    }
+
+    generateBreadcrumb(obj, max = 3) {
+        if (!obj) {
+            return " ";
+        }
+        const chain = this.buildParentChain(obj, max);
+        let breadcrumb = "";
+
+        // Add ellipsis if there are more ancestors beyond the chain and the first isn’t rootId
+        if (chain.length > 1 && chain[0].parent_id && chain[0].id !== this.rootId) {
+            breadcrumb += `<span class="breadcrumb-link" data-id="${chain[0].id}">...</span> / `;
+        }
+
+        chain.forEach((obj) => {
+            const isWorldRoot = !obj.parent_id;
+            const isRootBoundary = this.rootId && obj.id === this.rootId;
+            if (isWorldRoot || isRootBoundary) {
+                breadcrumb += `${this.formatObjectLabel(obj)} / `;
+            } else {
+                breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${this.formatObjectLabel(obj)}</span> / `;
+            }
+        });
+
+        if (breadcrumb.endsWith(" / ")) {
+            breadcrumb = breadcrumb.slice(0, -3);
+        }
+
+        return breadcrumb || " ";
+    }
+
+    createObjectElement(obj, isSelected = false) {
+        const itemEl = document.createElement("div");
+        itemEl.className = `object-item${isSelected ? " selected" : ""}`;
+
+        const damageBg = document.createElement("div");
+        damageBg.className = "damage-background";
+        damageBg.style.width = `${(obj.damage || 0) * 100}%`;
+        itemEl.appendChild(damageBg);
+
+        const textEl = document.createElement("div");
+        textEl.innerHTML = this.formatObjectLabel(obj);
+        itemEl.appendChild(textEl);
+
+        itemEl.addEventListener("click", () => this.setCurrentObject(obj));
+        return itemEl;
+    }
+
+    getQualityColor = ((cache = new Map()) => {
+        const colorStops = [
+            { quality: 0.0, h: 0, s: 0, l: 0 },
+            { quality: 0.1, h: 0, s: 0, l: 50 },
+            { quality: 0.2, h: 0, s: 0, l: 100 },
+            { quality: 0.3, h: 120, s: 100, l: 50 },
+            { quality: 0.4, h: 240, s: 100, l: 50 },
+            { quality: 0.5, h: 60, s: 100, l: 50 },
+            { quality: 0.7, h: 39, s: 100, l: 50 },
+            { quality: 0.8, h: 0, s: 100, l: 50 },
+            { quality: 1.0, h: 300, s: 100, l: 50 },
+        ];
+
+        return (quality) => {
+            if (cache.has(quality)) {
+                return cache.get(quality);
+            }
+            for (let i = 0; i < colorStops.length - 1; i++) {
+                const current = colorStops[i];
+                const next = colorStops[i + 1];
+                if (quality >= current.quality && quality <= next.quality) {
+                    const t = (quality - current.quality) / (next.quality - current.quality);
+                    const h = Math.round(current.h + (next.h - current.h) * t);
+                    const s = Math.round(current.s + (next.s - current.s) * t);
+                    const l = Math.round(current.l + (next.l - current.l) * t);
+                    const result = hslToHex(h, s, l);
+                    cache.set(quality, result);
+                    return result;
+                }
+            }
+            cache.set(quality, "");
+            return "";
+        };
+    })();
+
+    renderSiblingList() {
+        const headerEl = this.siblingColumn.querySelector(".column-header");
+        const contentEl = this.siblingColumn.querySelector(".column-content");
+        const parent = this.currentObject ? this.getObjectParent(this.currentObject) : null;
+
+        headerEl.innerHTML = parent
+            ? this.generateBreadcrumb(parent)
+            : this.rootId
+              ? this.formatObjectLabel(state.objectsById.get(this.rootId))
+              : " ";
+
+        headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
+            link.addEventListener("click", () =>
+                this.setCurrentObject(state.objectsById.get(link.dataset.id))
+            );
+        });
+
+        contentEl.innerHTML = "";
+        const parentId = this.currentObject ? this.currentObject.parent_id : this.rootId;
+        const siblings = parentId ? state.childrenById.get(parentId) || [] : [];
+
+        siblings.forEach((itemId) => {
+            const item = state.objectsById.get(itemId);
+            const itemEl = this.createObjectElement(item, itemId === this.currentObject?.id);
+            contentEl.appendChild(itemEl);
+        });
+    }
+
+    renderFocusDetails() {
+        const headerEl = this.focusColumn.querySelector(".column-header");
+        const contentEl = this.focusColumn.querySelector(".column-content");
+
+        headerEl.innerHTML = this.currentObject ? this.formatObjectLabel(this.currentObject) : " ";
+        contentEl.innerHTML = "";
+
+        const infoArea = document.createElement("div");
+        infoArea.className = "object-info-area";
+        if (this.currentObject) {
+            infoArea.innerHTML = `
+                <div class="object-property"><span>ID:</span> ${this.currentObject.id}</div>
+                <div class="object-property"><span>Type:</span> ${this.currentObject.type}</div>
+                <div class="object-property"><span>Quality:</span> ${this.currentObject.quality || 0}</div>
+                <div class="object-property"><span>Damage:</span> ${this.currentObject.damage || 0}</div>
+                <div class="object-property"><span>Weight:</span> ${this.currentObject.weight || 0}</div>
+            `;
+        }
+        contentEl.appendChild(infoArea);
+
+        const childrenArea = document.createElement("div");
+        childrenArea.className = "children-area";
+        contentEl.appendChild(childrenArea);
+
+        if (this.currentObject) {
+            const children = state.childrenById.get(this.currentObject.id) || [];
+            children.forEach((childId) => {
+                const child = state.objectsById.get(childId);
+                const childEl = this.createObjectElement(child, false);
+                childrenArea.appendChild(childEl);
+            });
+        }
+    }
+
+    render() {
+        if (!this.currentObject && !this.rootId) {
+            this.clear();
+        } else {
+            this.renderSiblingList();
+            this.renderFocusDetails();
+        }
+    }
+
+    clear() {
+        this.siblingColumn.querySelector(".column-header").innerHTML = " ";
+        this.siblingColumn.querySelector(".column-content").innerHTML = "";
+        this.focusColumn.querySelector(".column-header").innerHTML = " ";
+        this.focusColumn.querySelector(".column-content").innerHTML = "";
+    }
+
+    isDescendant(target, ancestorId) {
+        for (let curr = target; curr; curr = state.objectsById.get(curr.parent_id)) {
+            if (curr.id === ancestorId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    setCurrentObject(obj) {
+        if (!obj || obj === this.currentObject) {
+            this.updateView();
+            return;
+        }
+
+        // Prevent setting currentObject to rootId or anything outside the root boundary
+        if (this.rootId) {
+            if (obj.id === this.rootId || !this.isDescendant(obj, this.rootId)) {
+                return;
+            }
+        }
+
+        this.currentObject = obj;
+        this.updateView();
+    }
+
+    handleNavigationKeyDown(e) {
+        if (e.target instanceof HTMLInputElement) {
+            return;
+        }
+
+        const siblings = state.childrenById.get(this.currentObject?.parent_id) || [];
+        const keyMap = {
+            j: siblings[siblings.indexOf(this.currentObject?.id) + 1],
+            arrowdown: siblings[siblings.indexOf(this.currentObject?.id) + 1],
+            k: siblings[siblings.indexOf(this.currentObject?.id) - 1],
+            arrowup: siblings[siblings.indexOf(this.currentObject?.id) - 1],
+            l: (state.childrenById.get(this.currentObject?.id) || [])[0],
+            arrowright: (state.childrenById.get(this.currentObject?.id) || [])[0],
+            h: this.getObjectParent(this.currentObject)?.id,
+            arrowleft: this.getObjectParent(this.currentObject)?.id,
+        };
+
+        const nextId = keyMap[e.key.toLowerCase()];
+        if (nextId) {
+            this.setCurrentObject(state.objectsById.get(nextId));
+            e.preventDefault();
+        }
+    }
+}
+
 // === DOM Utilities ===================
 const getElement = document.getElementById.bind(document);
 const elements = {
@@ -7,28 +278,17 @@ const elements = {
     chatInput: getElement("chatInput"),
     messagesContainer: getElement("messages"),
     chatContainer: getElement("chatContainer"),
-    objectExplorer: getElement("objectExplorer"),
-    siblingColumn: getElement("siblingColumn"),
-    focusColumn: getElement("focusColumn"),
-    playerSiblingColumn: getElement("playerSiblingColumn"),
-    playerFocusColumn: getElement("playerFocusColumn"),
     toggleChatBtn: getElement("toggleChatBtn"),
     sidebarButton: document.querySelector(".sidebar button"),
 };
 
 // === State Management ===================
 const state = {
-    objectsById: new Map(), // All objects by ID
-    childrenById: new Map(), // Children IDs by parent ID
-    currentObject: null, // Current world object explorer focus
-    currentPlayerObject: null, // Current player object explorer focus
-    playerId: null, // This clients player object id
-    focusId: null, // Object explorers focus id
+    objectsById: new Map(),
+    childrenById: new Map(),
     channel: "global",
+    playerId: null,
 };
-
-// Initialize channel
-setChatChannel(state.channel);
 
 // === Utility Functions ===================
 function toggleElementVisibility(element) {
@@ -46,12 +306,9 @@ function debounce(fn, delay) {
 const hslToHex = ((cache = new Map()) => {
     return function memoizedHslToHex(h, s, l) {
         const key = `${h},${s},${l}`;
-
-        // Return cached result if available
         if (cache.has(key)) {
             return cache.get(key);
         }
-
         s /= 100;
         l /= 100;
         const a = s * Math.min(l, 1 - l);
@@ -63,8 +320,6 @@ const hslToHex = ((cache = new Map()) => {
                 .padStart(2, "0");
         };
         const result = `#${f(0)}${f(8)}${f(4)}`;
-
-        // Cache the result
         cache.set(key, result);
         return result;
     };
@@ -118,267 +373,9 @@ function filterChatMessages() {
     elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
 }
 
-// === Explorer Utilities ===================
-function getObjectParent(obj) {
-    return state.objectsById.get(obj.parent_id);
-}
-
-function formatObjectLabel(obj) {
-    return `${obj.type} <span style="color:${getQualityColor(obj.quality)}">${obj.name}</span>`;
-}
-
-function buildParentChain(obj, max = 3) {
-    const chain = [];
-    let current = obj;
-    while (current && current.type !== "root" && chain.length < max) {
-        chain.unshift(current);
-        current = state.objectsById.get(current.parent_id);
-    }
-    return chain;
-}
-
-function generateBreadcrumb(obj, max = 3) {
-    if (!obj) {
-        return " ";
-    }
-    const chain = buildParentChain(obj, max);
-    let breadcrumb = "";
-    if (chain.length > 1 && chain[0].parent_id) {
-        breadcrumb += `<span class="breadcrumb-link" data-id="${chain[0].id}">...</span> / `;
-    }
-    chain.slice(-1).forEach((obj) => {
-        breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${formatObjectLabel(obj)}</span> / `;
-    });
-    return breadcrumb;
-}
-
-function createObjectElement(obj, isSelected = false, onClick) {
-    const itemEl = document.createElement("div");
-    itemEl.className = `object-item${isSelected ? " selected" : ""}`;
-
-    const damageBg = document.createElement("div");
-    damageBg.className = "damage-background";
-    damageBg.style.width = `${(obj.damage || 0) * 100}%`;
-    itemEl.appendChild(damageBg);
-
-    const textEl = document.createElement("div");
-    textEl.innerHTML = formatObjectLabel(obj);
-    itemEl.appendChild(textEl);
-
-    itemEl.addEventListener("click", () => onClick(obj));
-    return itemEl;
-}
-
-const getQualityColor = ((cache = new Map()) => {
-    const colorStops = [
-        { quality: 0.0, h: 0, s: 0, l: 0 },
-        { quality: 0.1, h: 0, s: 0, l: 50 },
-        { quality: 0.2, h: 0, s: 0, l: 100 },
-        { quality: 0.3, h: 120, s: 100, l: 50 },
-        { quality: 0.4, h: 240, s: 100, l: 50 },
-        { quality: 0.5, h: 60, s: 100, l: 50 },
-        { quality: 0.7, h: 39, s: 100, l: 50 },
-        { quality: 0.8, h: 0, s: 100, l: 50 },
-        { quality: 1.0, h: 300, s: 100, l: 50 },
-    ];
-
-    return function memoizedGetQualityColor(quality) {
-        // Return cached result if available
-        if (cache.has(quality)) {
-            return cache.get(quality);
-        }
-
-        for (let i = 0; i < colorStops.length - 1; i++) {
-            const current = colorStops[i];
-            const next = colorStops[i + 1];
-            if (quality >= current.quality && quality <= next.quality) {
-                const t = (quality - current.quality) / (next.quality - current.quality);
-                const h = Math.round(current.h + (next.h - current.h) * t);
-                const s = Math.round(current.s + (next.s - current.s) * t);
-                const l = Math.round(current.l + (next.l - current.l) * t);
-                const result = hslToHex(h, s, l);
-
-                // Cache the result
-                cache.set(quality, result);
-                return result;
-            }
-        }
-
-        // Cache and return default empty string for out-of-range values
-        cache.set(quality, "");
-        return "";
-    };
-})();
-
-// === Object Explorer Module ===================
-function renderSiblingList(selectedId, explorerType = "object") {
-    const isPlayer = explorerType === "player";
-    const stateKey = isPlayer ? "currentPlayerObject" : "currentObject";
-    const columnEl = isPlayer ? elements.playerSiblingColumn : elements.siblingColumn;
-    const headerEl = columnEl.querySelector(".column-header");
-    const contentEl = columnEl.querySelector(".column-content");
-
-    const currentObj = state[stateKey];
-    const parent = currentObj ? getObjectParent(currentObj) : null;
-    headerEl.innerHTML = parent
-        ? generateBreadcrumb(parent)
-        : isPlayer && state.playerId
-          ? formatObjectLabel(state.objectsById.get(state.playerId))
-          : " ";
-
-    headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
-        link.addEventListener("click", () =>
-            (isPlayer ? setPlayerCurrentObject : setCurrentObject)(
-                state.objectsById.get(link.dataset.id)
-            )
-        );
-    });
-
-    contentEl.innerHTML = "";
-    const parentId = currentObj ? currentObj.parent_id : isPlayer ? state.playerId : null;
-    const siblings = parentId ? state.childrenById.get(parentId) || [] : [];
-
-    siblings.forEach((itemId) => {
-        const item = state.objectsById.get(itemId);
-        const itemEl = createObjectElement(
-            item,
-            itemId === selectedId,
-            isPlayer ? setPlayerCurrentObject : setCurrentObject
-        );
-        contentEl.appendChild(itemEl);
-    });
-}
-
-function renderFocusDetails(explorerType = "object") {
-    const isPlayer = explorerType === "player";
-    const stateKey = isPlayer ? "currentPlayerObject" : "currentObject";
-    const columnEl = isPlayer ? elements.playerFocusColumn : elements.focusColumn;
-    const headerEl = columnEl.querySelector(".column-header");
-    const contentEl = columnEl.querySelector(".column-content");
-
-    const currentObj = state[stateKey];
-    headerEl.innerHTML = currentObj ? formatObjectLabel(currentObj) : " ";
-    contentEl.innerHTML = "";
-
-    const infoArea = document.createElement("div");
-    infoArea.className = "object-info-area";
-    if (currentObj) {
-        infoArea.innerHTML = `
-            <div class="object-property"><span>ID:</span> ${currentObj.id}</div>
-            <div class="object-property"><span>Type:</span> ${currentObj.type}</div>
-            <div class="object-property"><span>Quality:</span> ${currentObj.quality || 0}</div>
-            <div class="object-property"><span>Damage:</span> ${currentObj.damage || 0}</div>
-            <div class="object-property"><span>Weight:</span> ${currentObj.weight || 0}</div>
-        `;
-    }
-    contentEl.appendChild(infoArea);
-
-    const childrenArea = document.createElement("div");
-    childrenArea.className = "children-area";
-    contentEl.appendChild(childrenArea);
-
-    if (currentObj) {
-        const children = state.childrenById.get(currentObj.id) || [];
-        children.forEach((childId) => {
-            const child = state.objectsById.get(childId);
-            const childEl = createObjectElement(
-                child,
-                false,
-                isPlayer ? setPlayerCurrentObject : setCurrentObject
-            );
-            childrenArea.appendChild(childEl);
-        });
-    }
-}
-
-const updateExplorerView = debounce(() => {
-    if (state.currentObject) {
-        renderSiblingList(state.currentObject.id, "object");
-        renderFocusDetails("object");
-    } else {
-        clearColumn(elements.siblingColumn);
-        clearColumn(elements.focusColumn);
-    }
-    if (state.currentPlayerObject || state.playerId) {
-        renderSiblingList(state.currentPlayerObject?.id, "player");
-        renderFocusDetails("player");
-    } else {
-        clearColumn(elements.playerSiblingColumn);
-        clearColumn(elements.playerFocusColumn);
-    }
-}, 100);
-
-function clearColumn(columnEl) {
-    columnEl.querySelector(".column-header").innerHTML = " ";
-    columnEl.querySelector(".column-content").innerHTML = "";
-}
-
-function setCurrentObject(obj) {
-    if (obj === state.currentObject) {
-        return updateExplorerView();
-    }
-    console.log(`Setting currentObject: ${obj?.id}`);
-    state.currentObject = obj;
-    updateExplorerView();
-}
-
-function setPlayerCurrentObject(obj) {
-    if (!obj || obj.id === state.currentPlayerObject?.id) {
-        return updateExplorerView();
-    }
-
-    const isDescendant = (target, ancestorId) => {
-        for (let curr = target; curr; curr = state.objectsById.get(curr.parent_id)) {
-            if (curr.id === ancestorId) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    if (state.playerId && isDescendant(obj, state.playerId)) {
-        state.currentPlayerObject = obj;
-        updateExplorerView();
-    }
-}
-
-// === Event Handlers ===================
-function handleNavigationKeyDown(e) {
-    if (e.target instanceof HTMLInputElement) {
-        return;
-    }
-
-    const current = state.currentObject;
-    const siblings = state.childrenById.get(current?.parent_id) || [];
-    const keyMap = {
-        j: siblings[siblings.indexOf(current?.id) + 1],
-        arrowdown: siblings[siblings.indexOf(current?.id) + 1],
-        k: siblings[siblings.indexOf(current?.id) - 1],
-        arrowup: siblings[siblings.indexOf(current?.id) - 1],
-        l: (state.childrenById.get(current?.id) || [])[0],
-        arrowright: (state.childrenById.get(current?.id) || [])[0],
-        h: getObjectParent(current)?.id,
-        arrowleft: getObjectParent(current)?.id,
-    };
-
-    const nextId = keyMap[e.key.toLowerCase()];
-    if (nextId) {
-        setCurrentObject(state.objectsById.get(nextId)), e.preventDefault();
-    }
-}
-
-function toggleObjectExplorer() {
-    elements.objectExplorer.classList.toggle("hidden");
-}
-
-function resetAppState() {
-    state.objectsById.clear();
-    state.childrenById.clear();
-    state.currentObject = null;
-    state.currentPlayerObject = null;
-    state.channel = "global";
-    updateExplorerView();
-}
+// === Explorer Instances ===================
+const worldExplorer = new GameObjectExplorer("worldExplorerContainer"); // No root restriction
+const playerExplorer = new GameObjectExplorer("playerExplorerContainer", null); // Will set rootId later
 
 // === Worker Communication ===================
 const worker = new Worker("worker.js");
@@ -420,28 +417,80 @@ function processObjectUpdate(snapshot) {
     }
 
     state.objectsById.set(obj.id, obj);
-    (!state.currentObject && state.focusId === obj.id && setCurrentObject(obj)) ||
-        (state.currentObject && isObjectVisible(obj.id, false) && updateExplorerView());
 
-    (state.playerId === obj.parent_id &&
-        !state.currentPlayerObject &&
-        setPlayerCurrentObject(obj)) ||
-        (state.currentPlayerObject && isObjectVisible(obj.id, true) && updateExplorerView());
+    // Update explorers if object is visible
+    if (!worldExplorer.currentObject) {
+        worldExplorer.setCurrentObject(obj);
+    } else if (isObjectVisible(obj, worldExplorer)) {
+        worldExplorer.updateView();
+    }
+
+    if (state.playerId === obj.parent_id && !playerExplorer.currentObject) {
+        playerExplorer.setCurrentObject(obj);
+    } else if (isObjectVisible(obj, playerExplorer)) {
+        playerExplorer.updateView();
+    }
 }
 
-function isObjectVisible(objId, isPlayerExplorer = false) {
-    const current = isPlayerExplorer ? state.currentPlayerObject : state.currentObject;
-    if (!current || !state.objectsById.has(objId)) {
+function removeObject(objectId) {
+    const obj = state.objectsById.get(objectId);
+    if (!obj) {
+        return;
+    }
+
+    // Recursively remove all descendants first
+    const children = state.childrenById.get(objectId) || [];
+    const childrenToRemove = [...children];
+    childrenToRemove.forEach((childId) => {
+        removeObject(childId);
+    });
+
+    // Remove from parent's children array
+    const parentId = obj.parent_id;
+    if (parentId && state.childrenById.has(parentId)) {
+        const siblings = state.childrenById.get(parentId);
+        const index = siblings.indexOf(objectId);
+        if (index !== -1) {
+            siblings.splice(index, 1);
+        }
+        if (siblings.length === 0) {
+            state.childrenById.delete(parentId);
+        }
+    }
+
+    // Remove from objects map
+    state.objectsById.delete(objectId);
+
+    // Remove from children map (should be empty by now due to recursive removal)
+    state.childrenById.delete(objectId);
+
+    // Update explorers if the removed object was visible
+    if (worldExplorer.currentObject?.id === objectId) {
+        const parent = state.objectsById.get(obj.parent_id);
+        const siblings = state.childrenById.get(obj.parent_id) || [];
+        worldExplorer.setCurrentObject(siblings[0] ? state.objectsById.get(siblings[0]) : parent);
+    } else if (isObjectVisible(obj, worldExplorer)) {
+        worldExplorer.updateView();
+    }
+
+    if (playerExplorer.currentObject?.id === objectId) {
+        const parent = state.objectsById.get(obj.parent_id);
+        const siblings = state.childrenById.get(obj.parent_id) || [];
+        playerExplorer.setCurrentObject(siblings[0] ? state.objectsById.get(siblings[0]) : parent);
+    } else if (isObjectVisible(obj, playerExplorer)) {
+        playerExplorer.updateView();
+    }
+}
+
+function isObjectVisible(obj, explorer) {
+    const current = explorer.currentObject;
+    if (!current) {
         return false;
     }
 
-    return [
-        current.id,
-        state.objectsById.get(objId).parent_id,
-        current.parent_id,
-        ...(state.childrenById.get(current.id) || []),
-        getObjectParent(current)?.parent_id,
-    ].includes(objId);
+    return (
+        obj.id === current.id || obj.parent_id === current.id || obj.parent_id === current.parent_id
+    );
 }
 
 // === Event Listeners ===================
@@ -452,6 +501,13 @@ document.addEventListener("keydown", (e) => {
     } else if (e.ctrlKey && e.key === "Enter") {
         toggleChatVisibility();
         e.preventDefault();
+    } else {
+        // Handle navigation for focused explorer
+        if (document.activeElement === elements.chatInput) {
+            return;
+        }
+        worldExplorer.handleNavigationKeyDown(e);
+        playerExplorer.handleNavigationKeyDown(e);
     }
 });
 
@@ -467,8 +523,6 @@ document.querySelectorAll(".channelBtn").forEach((btn) => {
     btn.addEventListener("click", () => setChatChannel(btn.dataset.channel));
 });
 
-document.addEventListener("keydown", handleNavigationKeyDown);
-
 worker.addEventListener("init", ({ detail }) => {
     const { clientId, clientSecret, player_id } = detail;
     if (clientSecret) {
@@ -476,14 +530,14 @@ worker.addEventListener("init", ({ detail }) => {
     }
     if (player_id) {
         state.playerId = player_id;
-        state.focusId = player_id;
-        if (!state.currentObject && state.objectsById.has(player_id)) {
-            setCurrentObject(state.objectsById.get(player_id));
-        }
-        if (!state.currentPlayerObject) {
-            const playerChildren = state.childrenById.get(player_id) || [];
-            if (playerChildren.length) {
-                setPlayerCurrentObject(state.objectsById.get(playerChildren[0]));
+        playerExplorer.setRootId(player_id);
+        if (!worldExplorer.currentObject && state.objectsById.has(player_id)) {
+            // Set to a child of player_id if available
+            const children = state.childrenById.get(player_id) || [];
+            if (children.length > 0) {
+                worldExplorer.setCurrentObject(state.objectsById.get(children[0]));
+            } else {
+                worldExplorer.setCurrentObject(state.objectsById.get(player_id));
             }
         }
     }
@@ -491,11 +545,28 @@ worker.addEventListener("init", ({ detail }) => {
 
 worker.addEventListener("offline", ({ detail }) => {
     displayChatMessage(detail.message, "received", "global");
-    resetAppState();
+    worldExplorer.clear();
+    playerExplorer.clear();
 });
 
 worker.addEventListener("chat", ({ detail }) => {
     displayChatMessage(detail.content, "received", detail.channel);
+});
+
+worker.addEventListener("disconnected", ({ detail }) => {
+    const { id } = detail;
+
+    // Get the disconnected player object before removal
+    const disconnectedPlayer = state.objectsById.get(id);
+    if (!disconnectedPlayer) {
+        return;
+    }
+
+    // Add message to chat
+    displayChatMessage(`${disconnectedPlayer.name} disconnected.`, "system", "global");
+
+    // Remove from game state including all descendants
+    removeObject(id);
 });
 
 // === Initialization ===================
