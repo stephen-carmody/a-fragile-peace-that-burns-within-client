@@ -18,14 +18,17 @@ async function connect() {
         data.split("\n").forEach((msg) => {
             try {
                 const parsed = JSON.parse(msg);
-                if (parsed.type === "init") {
-                    if (parsed.clientSecret) clientSecret = parsed.clientSecret;
-                    if (parsed.keepAliveTimeout)
+                if (parsed.type === "connected") {
+                    if (parsed.clientSecret) {
+                        clientSecret = parsed.clientSecret;
+                    }
+                    if (parsed.keepAliveTimeout) {
                         keepAliveTimeout = parsed.keepAliveTimeout;
+                    }
                 }
                 postMessage(parsed);
-            } catch (error) {
-                console.error("Failed to parse message:", msg);
+            } catch (err) {
+                console.error("Failed to parse message:", msg, err);
             }
         });
     };

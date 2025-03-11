@@ -9,17 +9,16 @@
     <body class="colourtheme-muted-pascal">
         <div class="main-content">
             <div class="sidebar">
-                <button id="toggleChatBtn">❮❮</button>
-                <button class="channelBtn" data-channel="global">🗫</button>
-                <button class="channelBtn" data-channel="local">🗬</button>
+                <!-- Remove channel buttons from sidebar -->
             </div>
             <div class="explorers-container">
-                <!-- World Explorer Container -->
                 <div id="worldExplorerContainer" class="explorer-wrapper"></div>
-                <!-- Player Explorer Container -->
                 <div id="playerExplorerContainer" class="explorer-wrapper"></div>
-                <!-- Chat Container -->
                 <div class="chat-container" id="chatContainer">
+                    <!-- Add tabs container -->
+                    <div class="chat-tabs">
+                        <button id="toggleChatBtn">❮❮</button>
+                    </div>
                     <div class="messages" id="messages"></div>
                     <div class="input-area">
                         <input type="text" id="chatInput" placeholder="" />

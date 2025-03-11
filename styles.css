@@ -127,9 +127,9 @@ button {
     display: flex;
     flex-direction: column;
     flex: 1;
-    transition: width 0.3s ease-in-out;
     overflow: hidden;
     background: var(--chat-background);
+    position: relative;
 }
 
 .hidden {
@@ -144,10 +144,23 @@ button {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    transition:
+        transform 0.3s ease-in-out,
+        opacity 0.3s ease-in-out; /* Animation for sliding */
+    transform: translateY(0); /* Default position */
+    opacity: 1; /* Default visibility */
+}
+
+.messages.hidden {
+    transform: translateY(100%); /* Slide down out of view */
+    opacity: 0; /* Fade out */
+    height: 0; /* Collapse height when hidden */
+    padding: 0; /* Remove padding when hidden */
+    margin: 0; /* Remove margin when hidden */
 }
 
 .message {
-    padding: 10px;
+    padding: 0;
     margin: 5px 0;
     border-radius: 5px;
 }
@@ -163,6 +176,14 @@ button {
 .input-area {
     display: flex;
     padding: 10px;
+    transition: opacity 0.3s ease-in-out; /* Fade input area */
+}
+
+.input-area.hidden {
+    opacity: 0; /* Fade out */
+    height: 0; /* Collapse height */
+    padding: 0; /* Remove padding */
+    overflow: hidden; /* Prevent content from showing */
 }
 
 .input-area input {
@@ -361,4 +382,45 @@ div#keybindPopup {
 
 .breadcrumb-link:hover {
     text-decoration: underline;
+}
+
+.chat-tabs {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: var(--border);
+    background: var(--chat-background);
+    padding: 5px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    color: var(--chat-text-received);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+#toggleChatBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--sidebar-text);
+    font-size: 24px; /* Match previous sidebar button size */
+    padding: 8px;
+    margin-left: auto; /* Push to the right */
+}
+
+.tab-btn:hover {
+    color: var(--chat-text-sent);
+}
+
+.tab-btn.active {
+    border-bottom: 2px solid var(--chat-text-sent);
+    color: var(--chat-text-sent);
 }

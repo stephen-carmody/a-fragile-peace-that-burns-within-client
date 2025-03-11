@@ -279,14 +279,13 @@ const elements = {
     messagesContainer: getElement("messages"),
     chatContainer: getElement("chatContainer"),
     toggleChatBtn: getElement("toggleChatBtn"),
-    sidebarButton: document.querySelector(".sidebar button"),
 };
 
 // === State Management ===================
 const state = {
     objectsById: new Map(),
     childrenById: new Map(),
-    channel: "global",
+    channel: "event",
     playerId: null,
 };
 
@@ -327,10 +326,23 @@ const hslToHex = ((cache = new Map()) => {
 
 // === Chat Module ===================
 function toggleChatVisibility() {
-    const container = elements.chatContainer;
-    container.classList.toggle("hidden");
-    elements.sidebarButton.textContent = container.classList.contains("hidden") ? "❯❯" : "❮❮";
-    elements.chatInput[container.classList.contains("hidden") ? "blur" : "focus"]();
+    const messages = elements.messagesContainer;
+    const inputArea = document.querySelector(".input-area");
+    const isHidden = messages.classList.contains("hidden");
+
+    if (isHidden) {
+        // Show chat: slide up
+        messages.classList.remove("hidden");
+        inputArea.classList.remove("hidden");
+        elements.toggleChatBtn.textContent = "❮❮";
+        elements.chatInput.focus();
+    } else {
+        // Hide chat: slide down
+        messages.classList.add("hidden");
+        inputArea.classList.add("hidden");
+        elements.toggleChatBtn.textContent = "❯❯";
+        elements.chatInput.blur();
+    }
 }
 
 function sendChatMessage() {
@@ -343,7 +355,25 @@ function sendChatMessage() {
     elements.chatInput.value = "";
 }
 
-function displayChatMessage(text, direction, channel = "global") {
+function createChannelTab(channel) {
+    const tabsContainer = document.querySelector(".chat-tabs");
+    const existingTab = tabsContainer.querySelector(`.tab-btn[data-channel="${channel}"]`);
+    if (existingTab) {
+        return; // Tab already exists
+    }
+
+    const tabBtn = document.createElement("button");
+    tabBtn.className = "tab-btn";
+    tabBtn.dataset.channel = channel;
+    tabBtn.textContent = channel.charAt(0).toUpperCase() + channel.slice(1); // Capitalize first letter
+    tabBtn.addEventListener("click", () => setChatChannel(channel));
+    tabsContainer.insertBefore(tabBtn, elements.toggleChatBtn);
+}
+
+function displayChatMessage(text, direction = "received", channel = "event") {
+    // Create tab if channel doesn't exist
+    createChannelTab(channel);
+
     const el = document.createElement("div");
     el.textContent = text;
     el.classList.add("message");
@@ -360,9 +390,9 @@ function setChatChannel(channel) {
     if (elements.chatContainer.classList.contains("hidden")) {
         toggleChatVisibility();
     }
-    document.querySelectorAll(".channelBtn").forEach((btn) => {
-        btn.style.textShadow =
-            btn.dataset.channel === state.channel ? "0 0 0 #87CEEB" : "0 0 0 white";
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+        console.log(`${btn.dataset.channel} === ${state.channel}`);
+        btn.classList.toggle("active", btn.dataset.channel === state.channel);
     });
 }
 
@@ -502,7 +532,6 @@ document.addEventListener("keydown", (e) => {
         toggleChatVisibility();
         e.preventDefault();
     } else {
-        // Handle navigation for focused explorer
         if (document.activeElement === elements.chatInput) {
             return;
         }
@@ -519,32 +548,34 @@ elements.chatInput.addEventListener("keydown", (e) => {
 
 elements.toggleChatBtn.addEventListener("click", toggleChatVisibility);
 
-document.querySelectorAll(".channelBtn").forEach((btn) => {
+document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setChatChannel(btn.dataset.channel));
 });
 
-worker.addEventListener("init", ({ detail }) => {
-    const { clientId, clientSecret, player_id } = detail;
+worker.addEventListener("connected", ({ detail }) => {
+    const { clientId, clientSecret, playerId, welcomeMessage } = detail;
     if (clientSecret) {
         localStorage.setItem("clientSecret", clientSecret);
     }
-    if (player_id) {
-        state.playerId = player_id;
-        playerExplorer.setRootId(player_id);
-        if (!worldExplorer.currentObject && state.objectsById.has(player_id)) {
-            // Set to a child of player_id if available
-            const children = state.childrenById.get(player_id) || [];
+    if (playerId) {
+        state.playerId = playerId;
+        playerExplorer.setRootId(playerId);
+        if (!worldExplorer.currentObject && state.objectsById.has(playerId)) {
+            // Set to a child of playerId if available
+            const children = state.childrenById.get(playerId) || [];
             if (children.length > 0) {
                 worldExplorer.setCurrentObject(state.objectsById.get(children[0]));
             } else {
-                worldExplorer.setCurrentObject(state.objectsById.get(player_id));
+                worldExplorer.setCurrentObject(state.objectsById.get(playerId));
             }
         }
     }
+    displayChatMessage("Connected.");
+    displayChatMessage(welcomeMessage);
 });
 
 worker.addEventListener("offline", ({ detail }) => {
-    displayChatMessage(detail.message, "received", "global");
+    displayChatMessage(detail.message);
     worldExplorer.clear();
     playerExplorer.clear();
 });
@@ -563,14 +594,16 @@ worker.addEventListener("disconnected", ({ detail }) => {
     }
 
     // Add message to chat
-    displayChatMessage(`${disconnectedPlayer.name} disconnected.`, "system", "global");
+    displayChatMessage(`${disconnectedPlayer.name} disconnected.`);
 
     // Remove from game state including all descendants
     removeObject(id);
 });
 
 // === Initialization ===================
-displayChatMessage("Connecting to server...", "system", "global");
+displayChatMessage("Connecting to server...");
+setChatChannel(state.channel);
+
 worker.postMessage({
     type: "connect",
     url: "ws://localhost:8080",
