@@ -107,20 +107,22 @@ button {
 
 .explorer-wrapper {
     display: flex;
-    flex: 1;
     flex-direction: column;
     width: 100%;
     overflow: hidden;
 }
 
-.explorer-wrapper.object-explorer {
-    flex: 1;
+#worldExplorerContainer {
+    flex: 2;
 }
 
-.explorer-wrapper.player-explorer {
-    height: 30%;
+#playerExplorerContainer {
+    flex: 1;
     border-top: var(--border);
-    background: var(--chat-background);
+}
+
+.explorer-wrapper.object-explorer {
+    flex: 1;
 }
 
 .explorers-container {
@@ -129,6 +131,7 @@ button {
     flex: 1;
     overflow: hidden;
     position: relative;
+    height: 100%;
 }
 
 .chat-container {
@@ -146,7 +149,7 @@ button {
     flex-direction: column;
     overflow: hidden;
     transition: height 0.3s ease-in-out;
-    height: 50vh; /* Default height when visible */
+    height: 30vh; /* Default height when visible */
 }
 
 .chat-content.hidden {
@@ -228,7 +231,7 @@ div#keybindPopup {
 
 .object-explorer {
     display: flex;
-    flex: 1;
+    flex: 2;
     width: 100%;
     border-right: var(--border);
     transition: width 0.3s ease-in-out;
@@ -237,9 +240,8 @@ div#keybindPopup {
 
 .player-explorer {
     display: flex;
-    flex: 1;
+    height: 20vh;
     width: 100%;
-    height: 30%;
     border-top: var(--border);
     background: var(--chat-background);
     overflow: hidden;
@@ -285,32 +287,39 @@ div#keybindPopup {
     overflow: hidden;
 }
 
+.explorer-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.breadcrumb-area {
+    padding: 8px;
+    background: var(--breadcrumb-background);
+    border-bottom: var(--border);
+    width: 100%;
+}
+
+.explorer-columns {
+    display: flex;
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+}
+
 .explorer-column {
     border-right: var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-}
-
-#siblingColumn {
-    flex: 1;
-    width: 50%;
-}
-
-#focusColumn {
-    flex: 1;
-    width: 50%;
+    flex: 1 1 50%;
+    max-width: 50%;
+    min-width: 0;
 }
 
 .explorer-column:last-child {
     border-right: none;
-}
-
-.column-header {
-    padding: 8px;
-    min-height: 1em;
-    background: var(--breadcrumb-background);
-    border-bottom: var(--border);
 }
 
 .column-content {

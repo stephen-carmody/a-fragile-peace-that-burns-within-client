@@ -1,11 +1,45 @@
 // client.js
 
+// === Configuration ===================
+const config = {
+    // INFO: https://symbl.cc/en/unicode-table/#miscellaneous-technical
+    types: {
+        default: "⍰",
+        world: "🗺",
+        town: "🏘",
+        building: "🏚",
+        player: "웃",
+        well: "🜄",
+        market: "🛍",
+        npc: "👤",
+    },
+};
+// === DOM Utilities ===================
+const getElement = document.getElementById.bind(document);
+const elements = {
+    keybindPopup: getElement("keybindPopup"),
+    chatInput: getElement("chatInput"),
+    messagesContainer: getElement("messages"),
+    chatContainer: getElement("chatContainer"),
+    chatContent: getElement("chatContent"),
+    toggleChatBtn: getElement("toggleChatBtn"),
+};
+
+// === State Management ===================
+const state = {
+    objectsById: new Map(),
+    childrenById: new Map(),
+    channel: "event",
+    playerId: null,
+};
+
 // === GameObjectExplorer Class ===================
 class GameObjectExplorer {
-    constructor(containerId, rootId = null) {
+    constructor(containerId, rootId = null, breadcrumbDepth = 0) {
         this.container = document.getElementById(containerId);
         this.currentObject = null;
-        this.rootId = rootId; // Optional root ID defining the visibility boundary
+        this.rootId = rootId;
+        this.breadcrumbDepth = breadcrumbDepth;
 
         this.initUI();
         this.updateView = debounce(this.render.bind(this), 100);
@@ -14,17 +48,19 @@ class GameObjectExplorer {
     initUI() {
         this.container.innerHTML = `
             <div class="explorer-content object-explorer">
-                <div class="explorer-column sibling-column">
-                    <div class="column-header"></div>
-                    <div class="column-content"></div>
-                </div>
-                <div class="explorer-column focus-column">
-                    <div class="column-header"></div>
-                    <div class="column-content"></div>
+                ${this.breadcrumbDepth > 0 ? '<div class="breadcrumb-area"></div>' : ""}
+                <div class="explorer-columns">
+                    <div class="explorer-column sibling-column">
+                        <div class="column-content"></div>
+                    </div>
+                    <div class="explorer-column focus-column">
+                        <div class="column-content"></div>
+                    </div>
                 </div>
             </div>
         `;
 
+        this.breadcrumbArea = this.container.querySelector(".breadcrumb-area");
         this.siblingColumn = this.container.querySelector(".sibling-column");
         this.focusColumn = this.container.querySelector(".focus-column");
     }
@@ -45,13 +81,17 @@ class GameObjectExplorer {
     }
 
     formatObjectLabel(obj) {
-        return `${obj.type} <span style="color:${this.getQualityColor(obj.quality)}">${obj.name}</span>`;
+        return `${this.formatObjectType(obj)} <span style="color:${this.getQualityColor(obj.quality)}">${obj.name}</span>`;
+    }
+
+    formatObjectType(obj) {
+        return config.types[obj.type] || config.types.default;
     }
 
     buildParentChain(obj, max = 3) {
         const chain = [];
         let current = obj;
-        while (current && current.type !== "root" && chain.length < max) {
+        while (current && chain.length < max) {
             chain.unshift(current);
             if (this.rootId && current.id === this.rootId) {
                 break;
@@ -61,33 +101,36 @@ class GameObjectExplorer {
         return chain;
     }
 
-    generateBreadcrumb(obj, max = 3) {
-        if (!obj) {
-            return " ";
+    generateBreadcrumb(obj) {
+        if (!obj || this.breadcrumbDepth === 0) {
+            return "";
         }
-        const chain = this.buildParentChain(obj, max);
+
+        // Get chain with length of breadcrumbDepth + 1
+        const chain = this.buildParentChain(obj, this.breadcrumbDepth + 1);
+        if (chain.length === 0) {
+            return "";
+        }
+
         let breadcrumb = "";
 
-        // Add ellipsis if there are more ancestors beyond the chain and the first isn’t rootId
-        if (chain.length > 1 && chain[0].parent_id && chain[0].id !== this.rootId) {
+        // If chain length equals breadcrumbDepth + 1, first item becomes "..."
+        if (chain.length === this.breadcrumbDepth + 1) {
             breadcrumb += `<span class="breadcrumb-link" data-id="${chain[0].id}">...</span> / `;
+            chain.shift(); // Remove the first item
         }
 
-        chain.forEach((obj) => {
+        chain.forEach((obj, index) => {
             const isWorldRoot = !obj.parent_id;
             const isRootBoundary = this.rootId && obj.id === this.rootId;
             if (isWorldRoot || isRootBoundary) {
-                breadcrumb += `${this.formatObjectLabel(obj)} / `;
+                breadcrumb += `${this.formatObjectLabel(obj)}${index < chain.length - 1 ? " / " : ""}`;
             } else {
-                breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${this.formatObjectLabel(obj)}</span> / `;
+                breadcrumb += `<span class="breadcrumb-link" data-id="${obj.id}">${this.formatObjectLabel(obj)}</span>${index < chain.length - 1 ? " / " : ""}`;
             }
         });
 
-        if (breadcrumb.endsWith(" / ")) {
-            breadcrumb = breadcrumb.slice(0, -3);
-        }
-
-        return breadcrumb || " ";
+        return breadcrumb;
     }
 
     createObjectElement(obj, isSelected = false) {
@@ -143,25 +186,17 @@ class GameObjectExplorer {
     })();
 
     renderSiblingList() {
-        const headerEl = this.siblingColumn.querySelector(".column-header");
         const contentEl = this.siblingColumn.querySelector(".column-content");
         const parent = this.currentObject ? this.getObjectParent(this.currentObject) : null;
-
-        headerEl.innerHTML = parent
-            ? this.generateBreadcrumb(parent)
-            : this.rootId
-              ? this.formatObjectLabel(state.objectsById.get(this.rootId))
-              : " ";
-
-        headerEl.querySelectorAll(".breadcrumb-link").forEach((link) => {
-            link.addEventListener("click", () =>
-                this.setCurrentObject(state.objectsById.get(link.dataset.id))
-            );
-        });
 
         contentEl.innerHTML = "";
         const parentId = this.currentObject ? this.currentObject.parent_id : this.rootId;
         const siblings = parentId ? state.childrenById.get(parentId) || [] : [];
+
+        if (parent && parentId !== this.rootId) {
+            const parentEl = this.createObjectElement(parent, false);
+            contentEl.appendChild(parentEl);
+        }
 
         siblings.forEach((itemId) => {
             const item = state.objectsById.get(itemId);
@@ -171,10 +206,8 @@ class GameObjectExplorer {
     }
 
     renderFocusDetails() {
-        const headerEl = this.focusColumn.querySelector(".column-header");
         const contentEl = this.focusColumn.querySelector(".column-content");
 
-        headerEl.innerHTML = this.currentObject ? this.formatObjectLabel(this.currentObject) : " ";
         contentEl.innerHTML = "";
 
         const infoArea = document.createElement("div");
@@ -208,15 +241,24 @@ class GameObjectExplorer {
         if (!this.currentObject && !this.rootId) {
             this.clear();
         } else {
+            if (this.breadcrumbDepth > 0 && this.breadcrumbArea) {
+                this.breadcrumbArea.innerHTML = this.generateBreadcrumb(this.currentObject);
+                this.breadcrumbArea.querySelectorAll(".breadcrumb-link").forEach((link) => {
+                    link.addEventListener("click", () =>
+                        this.setCurrentObject(state.objectsById.get(link.dataset.id))
+                    );
+                });
+            }
             this.renderSiblingList();
             this.renderFocusDetails();
         }
     }
 
     clear() {
-        this.siblingColumn.querySelector(".column-header").innerHTML = " ";
+        if (this.breadcrumbArea) {
+            this.breadcrumbArea.innerHTML = "";
+        }
         this.siblingColumn.querySelector(".column-content").innerHTML = "";
-        this.focusColumn.querySelector(".column-header").innerHTML = " ";
         this.focusColumn.querySelector(".column-content").innerHTML = "";
     }
 
@@ -270,25 +312,6 @@ class GameObjectExplorer {
         }
     }
 }
-
-// === DOM Utilities ===================
-const getElement = document.getElementById.bind(document);
-const elements = {
-    keybindPopup: getElement("keybindPopup"),
-    chatInput: getElement("chatInput"),
-    messagesContainer: getElement("messages"),
-    chatContainer: getElement("chatContainer"),
-    chatContent: getElement("chatContent"),
-    toggleChatBtn: getElement("toggleChatBtn"),
-};
-
-// === State Management ===================
-const state = {
-    objectsById: new Map(),
-    childrenById: new Map(),
-    channel: "event",
-    playerId: null,
-};
 
 // === Utility Functions ===================
 function toggleElementVisibility(element) {
@@ -402,8 +425,8 @@ function filterChatMessages() {
 }
 
 // === Explorer Instances ===================
-const worldExplorer = new GameObjectExplorer("worldExplorerContainer"); // No root restriction
-const playerExplorer = new GameObjectExplorer("playerExplorerContainer", null); // Will set rootId later
+const worldExplorer = new GameObjectExplorer("worldExplorerContainer", null, 3);
+const playerExplorer = new GameObjectExplorer("playerExplorerContainer", null, 2);
 
 // === Worker Communication ===================
 const worker = new Worker("worker.js");
@@ -447,6 +470,9 @@ function processObjectUpdate(snapshot) {
     state.objectsById.set(obj.id, obj);
 
     // Update explorers if object is visible
+    if (obj.type === "world") {
+        worldExplorer.setRootId(obj.id);
+    }
     if (!worldExplorer.currentObject) {
         worldExplorer.setCurrentObject(obj);
     } else if (isObjectVisible(obj, worldExplorer)) {
