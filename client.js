@@ -278,6 +278,7 @@ const elements = {
     chatInput: getElement("chatInput"),
     messagesContainer: getElement("messages"),
     chatContainer: getElement("chatContainer"),
+    chatContent: getElement("chatContent"),
     toggleChatBtn: getElement("toggleChatBtn"),
 };
 
@@ -326,21 +327,18 @@ const hslToHex = ((cache = new Map()) => {
 
 // === Chat Module ===================
 function toggleChatVisibility() {
-    const messages = elements.messagesContainer;
-    const inputArea = document.querySelector(".input-area");
-    const isHidden = messages.classList.contains("hidden");
+    const chatContent = elements.chatContent;
+    const isHidden = chatContent.classList.contains("hidden");
 
     if (isHidden) {
         // Show chat: slide up
-        messages.classList.remove("hidden");
-        inputArea.classList.remove("hidden");
-        elements.toggleChatBtn.textContent = "❮❮";
+        chatContent.classList.remove("hidden");
+        elements.toggleChatBtn.textContent = "﹀";
         elements.chatInput.focus();
     } else {
         // Hide chat: slide down
-        messages.classList.add("hidden");
-        inputArea.classList.add("hidden");
-        elements.toggleChatBtn.textContent = "❯❯";
+        chatContent.classList.add("hidden");
+        elements.toggleChatBtn.textContent = "︿";
         elements.chatInput.blur();
     }
 }
