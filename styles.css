@@ -365,6 +365,11 @@ div#keybindPopup {
     z-index: 0;
 }
 
+.object-type {
+    display: inline-block;
+    width: 1em;
+}
+
 .object-item span {
     position: relative;
     z-index: 1;
@@ -378,8 +383,16 @@ div#keybindPopup {
     background: var(--object-selected);
 }
 
+.object-focus-background {
+    position: absolute;
+    right: 0.15em;
+    margin-top: -0.15em;
+    font-size: 300pt;
+    opacity: 0.5;
+    z-index: -1;
+}
+
 .breadcrumb-link {
-    color: var(--breadcrumb);
     text-decoration: none;
     cursor: pointer;
 }

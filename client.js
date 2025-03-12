@@ -1,19 +1,5 @@
 // client.js
 
-// === Configuration ===================
-const config = {
-    // INFO: https://symbl.cc/en/unicode-table/#miscellaneous-technical
-    types: {
-        default: "⍰",
-        world: "🗺",
-        town: "🏘",
-        building: "🏚",
-        player: "웃",
-        well: "🜄",
-        market: "🛍",
-        npc: "👤",
-    },
-};
 // === DOM Utilities ===================
 const getElement = document.getElementById.bind(document);
 const elements = {
@@ -31,6 +17,34 @@ const state = {
     childrenById: new Map(),
     channel: "event",
     playerId: null,
+    objectTypes: new Map(),
+};
+
+const COLORSTOPS = {
+    QUALITY: [
+        { value: 0.0, h: 0, s: 0, l: 0 },
+        { value: 0.1, h: 0, s: 0, l: 50 },
+        { value: 0.2, h: 0, s: 0, l: 100 },
+        { value: 0.3, h: 120, s: 100, l: 50 },
+        { value: 0.4, h: 240, s: 100, l: 50 },
+        { value: 0.5, h: 60, s: 100, l: 50 },
+        { value: 0.7, h: 39, s: 100, l: 50 },
+        { value: 0.8, h: 0, s: 100, l: 50 },
+        { value: 1.0, h: 300, s: 100, l: 50 },
+    ],
+    DAMAGE: [
+        { value: 0.0, h: 120, s: 100, l: 50 }, // Green
+        { value: 0.1, h: 108, s: 100, l: 50 },
+        { value: 0.2, h: 96, s: 100, l: 50 },
+        { value: 0.3, h: 84, s: 100, l: 50 },
+        { value: 0.4, h: 72, s: 100, l: 50 },
+        { value: 0.5, h: 60, s: 100, l: 50 }, // Yellow-green
+        { value: 0.6, h: 48, s: 100, l: 50 },
+        { value: 0.7, h: 36, s: 100, l: 50 },
+        { value: 0.8, h: 24, s: 100, l: 50 },
+        { value: 0.9, h: 12, s: 100, l: 50 },
+        { value: 1.0, h: 0, s: 100, l: 50 }, // Red
+    ],
 };
 
 // === GameObjectExplorer Class ===================
@@ -81,11 +95,42 @@ class GameObjectExplorer {
     }
 
     formatObjectLabel(obj) {
-        return `${this.formatObjectType(obj)} <span style="color:${this.getQualityColor(obj.quality)}">${obj.name}</span>`;
+        return `${this.formatObjectType(obj)} ${this.formatObjectDamage(obj)} ${obj.name}`;
     }
 
     formatObjectType(obj) {
-        return config.types[obj.type] || config.types.default;
+        const glyph = state.objectTypes.get(obj.type)?.glyph || "⍰";
+        return `<span class="object-type" style="color:${this.getColorGradient(obj.quality, COLORSTOPS.QUALITY)}">${glyph}</span>`;
+    }
+
+    formatObjectDamage(obj) {
+        let glyph = "⣿";
+        if (obj.damage > 0.1) {
+            glyph = "⣷";
+        }
+        if (obj.damage > 0.2) {
+            glyph = "⣧";
+        }
+        if (obj.damage > 0.3) {
+            glyph = "⣦";
+        }
+        if (obj.damage > 0.5) {
+            glyph = "⣤";
+        }
+        if (obj.damage > 0.7) {
+            glyph = "⣠";
+        }
+        if (obj.damage > 0.8) {
+            glyph = "⣀";
+        }
+        if (obj.damage > 0.9) {
+            glyph = "⢀";
+        }
+        if (obj.damage > 0.9) {
+            glyph = "&nbsp;";
+        }
+
+        return `<span class="object-damage" style="color:${this.getColorGradient(obj.damage, COLORSTOPS.DAMAGE)}">${glyph}</span>`;
     }
 
     buildParentChain(obj, max = 3) {
@@ -137,11 +182,6 @@ class GameObjectExplorer {
         const itemEl = document.createElement("div");
         itemEl.className = `object-item${isSelected ? " selected" : ""}`;
 
-        const damageBg = document.createElement("div");
-        damageBg.className = "damage-background";
-        damageBg.style.width = `${(obj.damage || 0) * 100}%`;
-        itemEl.appendChild(damageBg);
-
         const textEl = document.createElement("div");
         textEl.innerHTML = this.formatObjectLabel(obj);
         itemEl.appendChild(textEl);
@@ -150,37 +190,25 @@ class GameObjectExplorer {
         return itemEl;
     }
 
-    getQualityColor = ((cache = new Map()) => {
-        const colorStops = [
-            { quality: 0.0, h: 0, s: 0, l: 0 },
-            { quality: 0.1, h: 0, s: 0, l: 50 },
-            { quality: 0.2, h: 0, s: 0, l: 100 },
-            { quality: 0.3, h: 120, s: 100, l: 50 },
-            { quality: 0.4, h: 240, s: 100, l: 50 },
-            { quality: 0.5, h: 60, s: 100, l: 50 },
-            { quality: 0.7, h: 39, s: 100, l: 50 },
-            { quality: 0.8, h: 0, s: 100, l: 50 },
-            { quality: 1.0, h: 300, s: 100, l: 50 },
-        ];
-
-        return (quality) => {
-            if (cache.has(quality)) {
-                return cache.get(quality);
+    getColorGradient = ((cache = new Map()) => {
+        return (value, colorStops) => {
+            if (cache.has(value)) {
+                return cache.get(value);
             }
             for (let i = 0; i < colorStops.length - 1; i++) {
                 const current = colorStops[i];
                 const next = colorStops[i + 1];
-                if (quality >= current.quality && quality <= next.quality) {
-                    const t = (quality - current.quality) / (next.quality - current.quality);
+                if (value >= current.value && value <= next.value) {
+                    const t = (value - current.value) / (next.value - current.value);
                     const h = Math.round(current.h + (next.h - current.h) * t);
                     const s = Math.round(current.s + (next.s - current.s) * t);
                     const l = Math.round(current.l + (next.l - current.l) * t);
                     const result = hslToHex(h, s, l);
-                    cache.set(quality, result);
+                    cache.set(value, result);
                     return result;
                 }
             }
-            cache.set(quality, "");
+            cache.set(value, "");
             return "";
         };
     })();
@@ -209,6 +237,12 @@ class GameObjectExplorer {
         const contentEl = this.focusColumn.querySelector(".column-content");
 
         contentEl.innerHTML = "";
+
+        const glyph = state.objectTypes.get(this.currentObject.type)?.glyph || "⍰";
+        const glyphBackground = document.createElement("div");
+        glyphBackground.className = "object-focus-background";
+        glyphBackground.textContent = glyph;
+        contentEl.appendChild(glyphBackground);
 
         const infoArea = document.createElement("div");
         infoArea.className = "object-info-area";
@@ -444,12 +478,8 @@ function processObjectUpdate(snapshot) {
     const parts = snapshot.o.split(";");
     const obj = Object.assign(state.objectsById.get(parts[1]) || { id: parts[1] }, {
         type: parts[2],
-        name: parts[3],
-        quality: parseFloat(parts[4]),
-        damage: parseFloat(parts[5]),
-        weight: parseFloat(parts[6]),
         ...Object.fromEntries(
-            parts.slice(7).map((p) => {
+            parts.slice(3).map((p) => {
                 const [k, v] = p.split("=");
                 return [k, isNaN(v) ? v : parseFloat(v)];
             })
@@ -468,6 +498,14 @@ function processObjectUpdate(snapshot) {
     }
 
     state.objectsById.set(obj.id, obj);
+
+    // Update objectTypes if object is a type and skip explorer checks
+    console.log(`obj.type = "${obj.type}"`);
+    if (obj.type === "type") {
+        state.objectTypes.set(obj.name, obj);
+        console.log(`objectTypes["${obj.name}"] = `, obj);
+        return;
+    }
 
     // Update explorers if object is visible
     if (obj.type === "world") {
