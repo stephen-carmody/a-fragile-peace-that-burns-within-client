@@ -32,6 +32,23 @@
     --object-hover: #3b4261;
 }
 
+/* Catppucin Frappe Theme */
+.colourtheme-catppuccin-frappe {
+    --background: #303446; /* Base */
+    --text: #c6d0f5; /* Text */
+    --sidebar-background: #292c3c; /* Mantle */
+    --sidebar-text: #c6d0f5; /* Text */
+    --chat-background: #303446; /* Base */
+    --chat-text-sent: #8caaee; /* Blue */
+    --chat-text-received: #b5bfe2; /* Subtext0 */
+    --border: 1px solid #414559; /* Surface0 */
+    --popup-background: #303446; /* Base */
+    --breadcrumb-background: #414559; /* Surface0 */
+    --breadcrumb: #ca9ee6; /* Mauve */
+    --object-selected: #51576d; /* Surface2 */
+    --object-hover: #626880; /* Surface1 */
+}
+
 /* Gruvbox Theme */
 .colourtheme-gruvbox {
     --background: #282828;
@@ -61,7 +78,7 @@ body {
     display: flex;
     flex-direction: column;
     font-family: monospace;
-    font-size: 24px;
+    font-size: 2vh;
     color: var(--text);
     background: var(--background);
 }
@@ -121,8 +138,9 @@ button {
     border-top: var(--border);
 }
 
-.explorer-wrapper.object-explorer {
+.explorer-wrapper .object-explorer {
     flex: 1;
+    background: var(--background);
 }
 
 .explorers-container {
@@ -156,7 +174,7 @@ button {
     height: 0; /* Collapse height when hidden */
 }
 
-.messages {
+.messages-container {
     flex: 1;
     padding: 20px;
     overflow-y: auto;
@@ -197,7 +215,6 @@ div#keybindPopup {
     left: 50%;
     transform: translate(-50%, -50%);
     padding: 20px;
-    font-size: 50%;
     background: var(--popup-background);
     border: var(--border);
     border-radius: 5px;
@@ -302,10 +319,12 @@ div#keybindPopup {
 }
 
 .explorer-columns {
+    position: relative;
     display: flex;
     flex: 1;
     width: 100%;
     overflow: hidden;
+    z-index: 1;
 }
 
 .explorer-column {
@@ -323,6 +342,7 @@ div#keybindPopup {
 }
 
 .column-content {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     display: flex;
@@ -356,23 +376,25 @@ div#keybindPopup {
     position: relative;
 }
 
-.damage-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: rgba(128, 128, 128, 0.5);
-    z-index: 0;
+.object-item > div {
+    position: relative;
 }
 
 .object-type {
+    position: relative;
     display: inline-block;
     width: 1em;
+    z-index: 1;
 }
 
-.object-item span {
+.object-name {
     position: relative;
     z-index: 1;
+}
+
+.object-damage {
+    position: absolute;
+    z-index: 0;
 }
 
 .object-item:hover {
@@ -385,11 +407,18 @@ div#keybindPopup {
 
 .object-focus-background {
     position: absolute;
-    right: 0.15em;
-    margin-top: -0.15em;
-    font-size: 300pt;
-    opacity: 0.5;
-    z-index: -1;
+    right: 0;
+    bottom: -0.2em;
+    font-size: 30vh;
+    opacity: 0.2;
+}
+
+.parent-glyph-background {
+    position: absolute;
+    left: 0;
+    bottom: -0.2em;
+    font-size: 70vh;
+    opacity: 0.05;
 }
 
 .breadcrumb-link {
@@ -437,4 +466,44 @@ div#keybindPopup {
 .tab-btn.active {
     border-bottom: 2px solid var(--chat-text-sent);
     color: var(--chat-text-sent);
+}
+
+#commandPalette {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 400px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#commandInput {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+    margin-bottom: 5px;
+}
+
+#commandSuggestions {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.suggestion {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.suggestion:hover,
+.suggestion.highlighted {
+    background: #f0f0f0;
 }

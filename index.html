@@ -4,13 +4,11 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Chat Client</title>
-        <link rel="stylesheet" href="./styles.css"></link>
+        <link rel="stylesheet" href="./styles.css" />
     </head>
-    <body class="colourtheme-muted-pascal">
+    <body class="colourtheme-catppuccin-frappe">
         <div class="main-content">
-            <div class="sidebar">
-                <!-- Remove channel buttons from sidebar -->
-            </div>
+            <div class="sidebar"></div>
             <div class="explorers-container">
                 <div id="worldExplorerContainer" class="explorer-wrapper"></div>
                 <div id="playerExplorerContainer" class="explorer-wrapper"></div>
@@ -19,16 +17,18 @@
                         <button id="toggleChatBtn">﹀</button>
                     </div>
                     <div class="chat-content" id="chatContent">
-                        <div class="messages" id="messages"></div>
+                        <div class="messages-container" id="messagesContainer"></div>
                         <div class="input-area">
-                            <input type="text" id="chatInput" placeholder="" />
+                            <input type="text" id="chatInput" placeholder="Type a message..." />
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div id="keybindPopup">
-            <!-- [Keyboard shortcuts table remains unchanged] -->
+        <div id="keyPopup" style="display: none"></div>
+        <div id="commandPalette" style="display: none">
+            <input type="text" id="commandInput" placeholder="Type a command..." />
+            <div id="commandSuggestions"></div>
         </div>
         <script type="module" src="client.js"></script>
     </body>

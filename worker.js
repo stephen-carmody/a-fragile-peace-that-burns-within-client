@@ -1,16 +1,21 @@
+// worker.js
 let wsUrl = "ws://localhost:8080";
-let clientSecret;
-let socket;
+let clientSecret = "";
+let socket = null;
 let sendBuffer = [];
 let reconnectAttempts = 0;
 let keepAliveTimeout = 30000;
 let lastSentTime = 0;
 
-async function connect() {
+/**
+ * Establishes a WebSocket connection to the server.
+ */
+function connect() {
     socket = new WebSocket(`${wsUrl}?secret=${clientSecret}`);
 
     socket.onopen = () => {
         reconnectAttempts = 0;
+        console.log("worker: WebSocket connected");
     };
 
     socket.onmessage = ({ data }) => {
@@ -28,7 +33,7 @@ async function connect() {
                 }
                 postMessage(parsed);
             } catch (err) {
-                console.error("Failed to parse message:", msg, err);
+                console.error("worker: Failed to parse message:", msg, err);
             }
         });
     };
@@ -37,21 +42,32 @@ async function connect() {
         const delay = Math.min(1000 * 2 ** reconnectAttempts++, 60000);
         postMessage({
             type: "offline",
-            message: "Server offline. Reconnecting in " + delay / 1000 + "s...",
+            message: `Server offline. Reconnecting in ${delay / 1000}s...`,
         });
         setTimeout(connect, delay);
     };
+
+    socket.onerror = (err) => {
+        console.error("worker: WebSocket error:", err);
+    };
 }
 
+/**
+ * Adds a message to the send buffer.
+ * @param {Object} message - The message to send.
+ */
 function sendMessage(message) {
     sendBuffer.push(JSON.stringify(message));
 }
 
+/**
+ * Periodically sends buffered messages and maintains keep-alive.
+ */
 setInterval(() => {
     if (!sendBuffer.length && Date.now() - lastSentTime > keepAliveTimeout - 5000) {
         sendBuffer.push(JSON.stringify({ type: "ping" }));
     }
-    if (sendBuffer.length && socket.readyState === WebSocket.OPEN) {
+    if (sendBuffer.length && socket?.readyState === WebSocket.OPEN) {
         const message = sendBuffer.join("\n");
         socket.send(message);
         console.log(`worker:send -> ${message}`);
@@ -63,7 +79,7 @@ setInterval(() => {
 self.onmessage = ({ data }) => {
     if (data.type === "connect") {
         wsUrl = data.url;
-        clientSecret = data.clientSecret;
+        clientSecret = data.clientSecret || "";
         connect();
     } else {
         sendMessage(data);
