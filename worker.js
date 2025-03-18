@@ -15,11 +15,11 @@ function connect() {
 
     socket.onopen = () => {
         reconnectAttempts = 0;
-        console.log("worker: WebSocket connected");
+        //console.log("worker: WebSocket connected");
     };
 
     socket.onmessage = ({ data }) => {
-        console.log(`worker:received <- ${data}`);
+        //console.log(`worker:received <- ${data}`);
         data.split("\n").forEach((msg) => {
             try {
                 const parsed = JSON.parse(msg);

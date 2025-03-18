@@ -2,6 +2,64 @@
 
 // DOM Utilities
 const $ = (id) => document.getElementById(id);
+
+function createElement(tag, options = {}) {
+    // Create the element
+    const element = document.createElement(tag);
+
+    // Set className (accepts string or array)
+    if (options.className) {
+        if (Array.isArray(options.className)) {
+            element.classList.add(...options.className);
+        } else {
+            element.className = options.className;
+        }
+    }
+
+    // Set ID
+    if (options.id) {
+        element.id = options.id;
+    }
+
+    // Set text content (priority to text over html)
+    if (options.text) {
+        element.textContent = options.text;
+    } else if (options.html) {
+        element.innerHTML = options.html;
+    }
+
+    // Set attributes
+    if (options.attributes) {
+        Object.entries(options.attributes).forEach(([key, value]) => {
+            element.setAttribute(key, value);
+        });
+    }
+
+    // Set inline styles
+    if (options.styles) {
+        Object.assign(element.style, options.styles);
+    }
+
+    // Add event listeners
+    if (options.events) {
+        Object.entries(options.events).forEach(([event, handler]) => {
+            element.addEventListener(event, handler);
+        });
+    }
+
+    // Append children (accepts single element or array)
+    if (options.children) {
+        const children = Array.isArray(options.children) ? options.children : [options.children];
+        children.forEach((child) => {
+            if (child instanceof HTMLElement) {
+                element.appendChild(child);
+            }
+        });
+    }
+
+    return element;
+}
+
 const elements = Object.freeze({
     keybindPopup: $("keybindPopup"),
     chatInput: $("chatInput"),
@@ -33,6 +91,30 @@ const COLORSTOPS = Object.freeze({
         { value: 1.0, h: 0, s: 70, l: 40 },
     ],
 });
+
+const DAMAGE_DESCRIPTORS = [
+    "Pristine",
+    "Faded",
+    "Tarnished",
+    "Scuffed",
+    "Worn",
+    "Pitted",
+    "Battered",
+    "Weathered",
+    "Marred",
+    "Cracked",
+    "Splintered",
+    "Warped",
+    "Gnarled",
+    "Corroded",
+    "Fractured",
+    "Ravaged",
+    "Mangled",
+    "Crumbling",
+    "Broken",
+    "Ruined",
+    "Destroyed",
+];
 
 // GameObjectExplorer Class
 class GameObjectExplorer {
@@ -72,7 +154,6 @@ class GameObjectExplorer {
         if (!this.#currentObject && id) {
             const firstChild = state.childrenById.get(id)?.[0];
             if (firstChild) {
-                console.log(`setRootId... ${state.objectsById.get(firstChild).type}`);
                 this.setCurrentObject(state.objectsById.get(firstChild));
             }
         }
@@ -80,6 +161,10 @@ class GameObjectExplorer {
 
     #getParent(obj) {
         return state.objectsById.get(obj?.parent_id);
+    }
+
+    #getDamageDescription(obj) {
+        return DAMAGE_DESCRIPTORS[Math.floor(obj.damage * 20)];
     }
 
     #formatObject(obj) {
@@ -93,30 +178,7 @@ class GameObjectExplorer {
 
         if (obj.damage) {
             const damageColor = getColorGradient(obj.damage, "DAMAGE");
-            const prefix = [
-                "Pristine",
-                "Faded",
-                "Tarnished",
-                "Scuffed",
-                "Worn",
-                "Pitted",
-                "Battered",
-                "Weathered",
-                "Marred",
-                "Cracked",
-                "Splintered",
-                "Warped",
-                "Gnarled",
-                "Corroded",
-                "Fractured",
-                "Ravaged",
-                "Mangled",
-                "Crumbling",
-                "Broken",
-                "Ruined",
-                "Destroyed",
-            ][Math.floor(obj.damage * 20)];
-            name = `<span style="color:${damageColor}">${prefix}</span> ${name}`;
+            name = `<span style="color:${damageColor}">${this.#getDamageDescription(obj)}</span> ${name}`;
         }
 
         return `
@@ -138,9 +200,7 @@ class GameObjectExplorer {
             return "";
         }
 
-        console.log(this.#breadcrumbDepth + 1);
         const chain = this.#buildParentChain(obj, this.#breadcrumbDepth + 1);
-        console.log(chain);
         if (!chain.length) {
             return "";
         }
@@ -166,11 +226,16 @@ class GameObjectExplorer {
         return el;
     }
 
-    #createObjectInfoProperty(key, value) {
-        const el = document.createElement("div");
-        el.className = "object-property";
-        el.innerHTML = `<span>${key}</span> ${value}`;
-        return el;
+    #createObjectInfoProperty(obj) {
+        const paragraphs = [
+            createElement("p", {
+                html: `A ${obj.type}${obj.name ? " named " + obj.name : ""}`,
+            }),
+            createElement("p", {
+                html: `The ${obj.type} is in ${this.#getDamageDescription(obj)} condition (${Math.floor((obj.damage / 1.0) * 100)}%)`,
+            }),
+        ];
+        return paragraphs;
     }
 
     #renderSiblings() {
@@ -210,11 +275,7 @@ class GameObjectExplorer {
                 className: "children-area",
             }))
         );
-        infoArea.replaceChildren(
-            ...Object.entries(this.#currentObject).map((_) =>
-                this.#createObjectInfoProperty(_[0], _[1])
-            )
-        );
+        infoArea.replaceChildren(this.#createObjectInfoProperty(this.#currentObject));
         childrenArea.replaceChildren(
             ...(state.childrenById.get(this.#currentObject.id) ?? []).map((id) =>
                 this.#createObjectElement(state.objectsById.get(id))
@@ -268,7 +329,6 @@ class GameObjectExplorer {
         if (!obj) {
             return;
         }
-        console.log(`setCurrentObject...`, obj.type);
         this.#currentObject = obj;
         this.updateView();
     }
@@ -318,6 +378,7 @@ const getColorGradient = (
     (value, stopName) => {
         const key = `${stopName},${value}`;
         const cached = cache.get(key);
+
         if (cached) {
             return cached;
         }
@@ -333,7 +394,11 @@ const getColorGradient = (
             return "";
         }
 
-        const t = (value - current.value) / (next.value - current.value);
+        const t =
+            next.value === current.value
+                ? 1
+                : (value - current.value) / (next.value - current.value);
+
         const interpolate = (a, b) => Math.round(a + (b - a) * t);
         const result = hslToHex(
             interpolate(current.h, next.h),
@@ -486,19 +551,13 @@ const processObjectUpdate = (snapshot) => {
         return;
     }
 
-    console.log(
-        `processObjectUpdate... state.playerId = ${state.playerId}, obj.id = ${obj.id}, currentObject = ${worldExplorer.getCurrentObject()}`
-    );
-
     if (state.playerId === obj.id && !worldExplorer.getCurrentObject()) {
-        console.log(`processObjectUpdate...world... ${obj.type}`);
         worldExplorer.setCurrentObject(obj);
     } else if (isObjectVisible(obj, worldExplorer)) {
         worldExplorer.updateView();
     }
 
     if (state.playerId === obj.parent_id && !playerExplorer.getCurrentObject()) {
-        console.log(`processObjectUpdate...player... ${obj.type}`);
         playerExplorer.setCurrentObject(obj);
     } else if (isObjectVisible(obj, playerExplorer)) {
         playerExplorer.updateView();
